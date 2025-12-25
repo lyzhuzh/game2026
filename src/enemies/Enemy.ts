@@ -191,6 +191,16 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
+        // Add debug box (always visible)
+        const debugBox = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 2, 1),
+            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
+        );
+        debugBox.position.y = 1;
+        debugBox.name = 'DebugBox';
+        this.mesh.add(debugBox);
+        console.log(`[Enemy] ${this.type} Added debug wireframe box`);
+
         // Debug: Count meshes in model
         let meshCount = 0;
         model.traverse((child) => {
@@ -206,53 +216,47 @@ export class Enemy {
         console.log(`[Enemy] ${this.type} raw model size:`, tempSize);
 
         // Determine scale based on model height
-        // Target height is around 1.7-2.0 units for human-sized character
         const modelHeight = tempSize.y;
         let targetScale = 1.0;
-
         if (modelHeight > 10) {
-            // Model is too large, scale down
             targetScale = 1.8 / modelHeight;
         } else if (modelHeight < 1) {
-            // Model is too small, scale up
             targetScale = 1.8 / modelHeight;
         }
-
         console.log(`[Enemy] ${this.type} applying scale:`, targetScale);
 
         // Apply scale
         model.scale.setScalar(targetScale);
-
-        // Reset position and rotation
         model.position.set(0, 0, 0);
         model.rotation.set(0, 0, 0);
 
-        // Replace all materials with a basic visible material
+        // Use MeshBasicMaterial (no lighting needed)
+        const basicMaterial = new THREE.MeshBasicMaterial({
+            color: this.getEnemyColor(this.type),
+            side: THREE.DoubleSide
+        });
+
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-                // Create a simple, guaranteed-visible material
-                const visibleMaterial = new THREE.MeshStandardMaterial({
-                    color: this.getEnemyColor(this.type),
-                    roughness: 0.5,
-                    metalness: 0.5,
-                    transparent: false,
-                    opacity: 1.0,
-                    side: THREE.DoubleSide
-                });
-
-                child.material = visibleMaterial;
-                child.castShadow = true;
-                child.receiveShadow = true;
+                child.material = basicMaterial;
                 child.visible = true;
+                console.log(`[Enemy] Applied basic material to mesh:`, child.name);
             }
         });
 
         this.mesh.add(model);
 
-        // Log final bounding box
-        const bbox = this.getBoundingBox(model);
-        console.log(`[Enemy] ${this.type} at position:`, this.mesh.position);
-        console.log(`[Enemy] Scaled model bounding box:`, bbox.size);
+        // Check if meshes are actually in scene
+        let visibleMeshCount = 0;
+        this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                visibleMeshCount++;
+                const worldPos = new THREE.Vector3();
+                child.getWorldPosition(worldPos);
+                console.log(`[Enemy] Visible mesh: ${child.name || 'unnamed'} at world:`, worldPos);
+            }
+        });
+        console.log(`[Enemy] ${this.type} total visible meshes in scene: ${visibleMeshCount}`);
     }
 
     /**
