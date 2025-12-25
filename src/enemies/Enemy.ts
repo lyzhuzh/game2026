@@ -191,6 +191,14 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
+        // Add a visible debug box to confirm enemy position
+        const debugBox = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 2, 1),
+            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
+        );
+        debugBox.position.y = 1;
+        this.mesh.add(debugBox);
+
         // Scale model appropriately - try different scales based on model size
         // Anime models can vary widely in scale
         model.scale.setScalar(1); // Start with no scaling
@@ -211,7 +219,11 @@ export class Enemy {
         });
 
         this.mesh.add(model);
-        console.log(`[Enemy] Loaded model for ${this.type}, bounding box:`, this.getBoundingBox(model));
+
+        const bbox = this.getBoundingBox(model);
+        console.log(`[Enemy] ${this.type} model loaded at position:`, this.mesh.position);
+        console.log(`[Enemy] Model bounding box size:`, bbox.size, 'center:', bbox.center);
+        console.log(`[Enemy] Mesh world position:`, this.mesh.position);
     }
 
     /**
