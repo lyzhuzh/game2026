@@ -281,7 +281,6 @@ export class Enemy {
                 // Detect player
                 if (distance < this.stats.detectionRange) {
                     this.state = 'chase';
-                    this.target = playerPosition.clone();
                     console.log(`[Enemy] ${this.type} detected player at distance ${distance.toFixed(1)}`);
                 }
                 break;
@@ -295,9 +294,6 @@ export class Enemy {
                 // Lose sight of player
                 else if (distance > this.stats.loseSightRange) {
                     this.state = 'patrol';
-                    this.target = null;
-                } else {
-                    this.target = playerPosition.clone();
                 }
                 break;
 

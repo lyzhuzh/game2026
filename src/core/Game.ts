@@ -19,6 +19,7 @@ import { ProjectileManager } from '../weapons/ProjectileManager';
 import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
 import { WeaponRenderer } from '../weapons/WeaponRenderer';
+import { LevelBuilder } from '../level/LevelBuilder';
 
 /**
  * Main Game Class
@@ -68,6 +69,9 @@ export class Game {
 
     // Weapon renderer (first-person view)
     private weaponRenderer: WeaponRenderer;
+
+    // Level building system
+    private levelBuilder: LevelBuilder;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -147,6 +151,9 @@ export class Game {
 
         // Show initial weapon
         this.weaponRenderer.showWeapon('pistol');
+
+        // Initialize level builder
+        this.levelBuilder = new LevelBuilder(this.scene);
 
         // Create renderer
         const canvas = document.createElement('canvas');
@@ -257,6 +264,10 @@ export class Game {
         console.log('[Game] Loading assets...');
         await this.assetManager.initialize(GAME_ASSETS);
 
+        // Initialize level builder and preload environment assets
+        console.log('[Game] Initializing level builder...');
+        await this.levelBuilder.initialize();
+
         // Initialize time system
         Time.initialize();
 
@@ -266,8 +277,12 @@ export class Game {
         // Set camera for particle billboarding
         this.particles.setCamera(this.camera);
 
-        // Setup basic scene (temporary - will be replaced by SceneSetup)
-        this.setupBasicScene();
+        // Generate procedural level
+        console.log('[Game] Generating level...');
+        await this.levelBuilder.generateLevel();
+
+        // Add lights
+        this.setupLights();
 
         // Start first wave of enemies
         this.enemies.startWave(1);
@@ -318,12 +333,11 @@ export class Game {
     }
 
     /**
-     * Setup basic scene for testing
-     * TODO: Replace with LevelLoader
+     * Setup scene lighting
      */
-    private setupBasicScene(): void {
+    private setupLights(): void {
         // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambientLight);
 
         // Add directional light (sun)
@@ -343,112 +357,6 @@ export class Game {
         // Create physics ground
         const groundBody = PhysicsBodyFactory.createGround(this.physics, 'ground');
         this.physicsBodies.push(groundBody);
-
-        // Create visual ground
-        const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x555555,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-
-        // Add physics-enabled test objects (boxes)
-        const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
-        const boxMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8b4513,
-            roughness: 0.7,
-            metalness: 0.1
-        });
-
-        for (let i = 0; i < 20; i++) {
-            // Create visual mesh
-            const box = new THREE.Mesh(boxGeometry, boxMaterial);
-            const posX = (Math.random() - 0.5) * 80;
-            const posY = 1 + Math.random() * 5;
-            const posZ = (Math.random() - 0.5) * 80;
-            box.position.set(posX, posY, posZ);
-            box.rotation.y = Math.random() * Math.PI;
-            box.rotation.x = Math.random() * 0.5;
-            box.rotation.z = Math.random() * 0.5;
-            box.castShadow = true;
-            box.receiveShadow = true;
-            this.scene.add(box);
-
-            // Create physics body (setMesh will sync body position to mesh)
-            const boxBody = PhysicsBodyFactory.createBox(
-                this.physics,
-                { x: 2, y: 2, z: 2 },
-                { type: 'dynamic', mass: 5 },
-                box
-            );
-
-            // Random initial velocity
-            boxBody.setVelocity(new THREE.Vector3(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 2,
-                (Math.random() - 0.5) * 2
-            ));
-
-            this.physicsBodies.push(boxBody);
-        }
-
-        // Add grid helper
-        const gridHelper = new THREE.GridHelper(200, 50, 0x444444, 0x222222);
-        this.scene.add(gridHelper);
-
-        // Create boundary walls to prevent falling off
-        this.createBoundaryWalls();
-    }
-
-    /**
-     * Create boundary walls around the play area
-     */
-    private createBoundaryWalls(): void {
-        const mapSize = 100; // Half-size of the map (200x200 total)
-        const wallHeight = 10;
-        const wallThickness = 2;
-
-        const wallMaterial = new THREE.MeshStandardMaterial({
-            color: 0x444444,
-            roughness: 0.9,
-            metalness: 0.1
-        });
-
-        // Create 4 walls
-        const wallConfigs = [
-            // North wall (+Z)
-            { pos: [0, wallHeight / 2, -mapSize - wallThickness / 2], size: [mapSize * 2 + wallThickness * 2, wallHeight, wallThickness] },
-            // South wall (-Z)
-            { pos: [0, wallHeight / 2, mapSize + wallThickness / 2], size: [mapSize * 2 + wallThickness * 2, wallHeight, wallThickness] },
-            // East wall (+X)
-            { pos: [mapSize + wallThickness / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize * 2] },
-            // West wall (-X)
-            { pos: [-mapSize - wallThickness / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize * 2] }
-        ];
-
-        for (const config of wallConfigs) {
-            // Create visual mesh
-            const wallGeometry = new THREE.BoxGeometry(config.size[0], config.size[1], config.size[2]);
-            const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
-            wallMesh.position.set(config.pos[0], config.pos[1], config.pos[2]);
-            wallMesh.castShadow = true;
-            wallMesh.receiveShadow = true;
-            this.scene.add(wallMesh);
-
-            // Create physics body
-            const wallBody = PhysicsBodyFactory.createBox(
-                this.physics,
-                { x: config.size[0], y: config.size[1], z: config.size[2] },
-                { type: 'static', mass: 0 },
-                wallMesh
-            );
-
-            this.physicsBodies.push(wallBody);
-        }
     }
 
     /**
@@ -727,6 +635,7 @@ export class Game {
         this.projectiles.clear();
         this.ui.dispose();
         this.weaponRenderer.dispose();
+        this.levelBuilder.dispose();
         this.assetManager.clear();
 
         // Dispose physics
