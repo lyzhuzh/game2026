@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { AssetManager } from '../assets/AssetManager';
 import { WeaponType } from '../weapons/WeaponConfig';
+import { GAME_ASSETS } from '../assets/AssetConfig';
 
 export class WeaponRenderer {
     private scene: THREE.Scene;
@@ -62,13 +63,17 @@ export class WeaponRenderer {
         // Remove current weapon model
         this.hideCurrentWeapon();
 
+        // Find asset config for this weapon
+        const assetConfig = GAME_ASSETS.find(a => a.id === assetId);
+        if (!assetConfig) {
+            console.warn(`[WeaponRenderer] No asset config found for ${weaponType} (${assetId})`);
+            this.createPlaceholderWeapon(weaponType);
+            return;
+        }
+
         // Load new weapon model
         try {
-            const gltf = await this.assetManager.loadAsset({
-                id: assetId,
-                type: 'glb',
-                url: `./assets/weapons/${weaponType}.glb`
-            });
+            const gltf = await this.assetManager.loadAsset(assetConfig);
 
             if (gltf && gltf.scene) {
                 this.currentWeaponModel = gltf.scene.clone();
