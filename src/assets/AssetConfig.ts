@@ -58,7 +58,7 @@ export const GAME_ASSETS: AssetConfig[] = [
     },
 
     // ============ ENEMIES ============
-    // Using anime-style character models
+    // Using anime-style character models (Zenless Zone Zero)
     {
         id: 'enemy_grunt',
         type: 'glb',
@@ -74,13 +74,13 @@ export const GAME_ASSETS: AssetConfig[] = [
     {
         id: 'enemy_heavy',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
-        preload: false
+        url: `${ASSETS_BASE_PATH}/enemies/koleda_belobog_zzz.glb`,
+        preload: true
     },
     {
         id: 'enemy_sniper',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/anby_demara_zzz.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
         preload: false
     },
 
