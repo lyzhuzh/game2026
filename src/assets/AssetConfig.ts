@@ -58,18 +58,29 @@ export const GAME_ASSETS: AssetConfig[] = [
     },
 
     // ============ ENEMIES ============
-    // Using available enemy model
-    {
-        id: 'enemy_soldier',
-        type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
-        preload: true
-    },
-    // Fallback for grunt (same model)
+    // Using anime-style character models
     {
         id: 'enemy_grunt',
         type: 'glb',
+        url: `${ASSETS_BASE_PATH}/enemies/anby_demara_zzz.glb`,
+        preload: true
+    },
+    {
+        id: 'enemy_soldier',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/enemies/nicole_demara_zzz.glb`,
+        preload: true
+    },
+    {
+        id: 'enemy_heavy',
+        type: 'glb',
         url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
+        preload: false
+    },
+    {
+        id: 'enemy_sniper',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/enemies/anby_demara_zzz.glb`,
         preload: false
     },
 
@@ -133,8 +144,8 @@ export function getEnemyAssetId(enemyType: string): string {
     const mapping: Record<string, string> = {
         'grunt': 'enemy_grunt',
         'soldier': 'enemy_soldier',
-        'heavy': 'enemy_soldier', // Use soldier as fallback
-        'sniper': 'enemy_soldier' // Use soldier as fallback
+        'heavy': 'enemy_heavy',
+        'sniper': 'enemy_sniper'
     };
-    return mapping[enemyType] || 'enemy_soldier';
+    return mapping[enemyType] || 'enemy_grunt';
 }
