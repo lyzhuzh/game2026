@@ -196,6 +196,9 @@ export class Enemy {
         model.scale.setScalar(0.01); // Anime models are often 100x scale
         model.position.y = 0; // Model origin at ground level
 
+        // Rotate model to face forward (anime models often face -Z by default)
+        model.rotation.y = Math.PI; // 180 degree rotation
+
         // Enable shadows
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {

@@ -223,12 +223,30 @@ export class LevelBuilder {
             return this.loadedModels.get(assetId)!.clone();
         }
 
-        const model = this.assetManager.getGLTF(assetId);
-        if (model) {
-            this.loadedModels.set(assetId, model);
-            return model.clone();
+        // Try to get from cache
+        const cachedModel = this.assetManager.getGLTF(assetId);
+        if (cachedModel) {
+            this.loadedModels.set(assetId, cachedModel);
+            return cachedModel.clone();
         }
 
+        // Asset not loaded - find config and load it
+        const assetConfig = GAME_ASSETS.find(a => a.id === assetId);
+        if (assetConfig) {
+            try {
+                console.log(`[LevelBuilder] Loading asset on-demand: ${assetId}`);
+                const gltf = await this.assetManager.loadAsset(assetConfig);
+                if (gltf && gltf.scene) {
+                    const model = gltf.scene.clone();
+                    this.loadedModels.set(assetId, model);
+                    return model.clone();
+                }
+            } catch (error) {
+                console.warn(`[LevelBuilder] Failed to load ${assetId}:`, error);
+            }
+        }
+
+        console.warn(`[LevelBuilder] Model not found: ${assetId}`);
         return null;
     }
 
