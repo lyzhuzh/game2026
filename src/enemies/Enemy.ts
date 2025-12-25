@@ -199,6 +199,13 @@ export class Enemy {
         debugBox.position.y = 1;
         this.mesh.add(debugBox);
 
+        // Debug: Count meshes in model
+        let meshCount = 0;
+        model.traverse((child) => {
+            if (child instanceof THREE.Mesh) meshCount++;
+        });
+        console.log(`[Enemy] ${this.type} model contains ${meshCount} meshes`);
+
         // Calculate bounding box first to determine proper scale
         const tempBox = new THREE.Box3().setFromObject(model);
         const tempSize = new THREE.Vector3();
@@ -228,26 +235,25 @@ export class Enemy {
         model.position.set(0, 0, 0);
         model.rotation.set(0, 0, 0);
 
-        // Enable shadows and ensure materials render
+        // Replace all materials with a basic visible material
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
+                // Create a simple, guaranteed-visible material
+                const visibleMaterial = new THREE.MeshStandardMaterial({
+                    color: this.getEnemyColor(this.type),
+                    roughness: 0.5,
+                    metalness: 0.5,
+                    transparent: false,
+                    opacity: 1.0,
+                    side: THREE.DoubleSide
+                });
+
+                child.material = visibleMaterial;
                 child.castShadow = true;
                 child.receiveShadow = true;
+                child.visible = true;
 
-                // Ensure material is visible
-                if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => {
-                            mat.transparent = false;
-                            mat.opacity = 1.0;
-                            mat.visible = true;
-                        });
-                    } else {
-                        child.material.transparent = false;
-                        child.material.opacity = 1.0;
-                        child.material.visible = true;
-                    }
-                }
+                console.log(`[Enemy] Applied material to mesh:`, child.name || 'unnamed');
             }
         });
 
@@ -256,6 +262,7 @@ export class Enemy {
         const bbox = this.getBoundingBox(model);
         console.log(`[Enemy] ${this.type} at position:`, this.mesh.position);
         console.log(`[Enemy] Scaled model bounding box:`, bbox.size);
+        console.log(`[Enemy] Model children count:`, model.children.length);
     }
 
     /**
