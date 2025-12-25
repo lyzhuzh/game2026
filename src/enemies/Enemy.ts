@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
+import { AssetManager } from '../assets/AssetManager';
+import { GAME_ASSETS } from '../assets/AssetConfig';
 
 export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
 export type EnemyType = 'grunt' | 'soldier' | 'heavy' | 'sniper';
@@ -92,7 +94,7 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
 export class Enemy {
     public readonly type: EnemyType;
     public readonly stats: EnemyStats;
-    public readonly mesh: THREE.Mesh;
+    public readonly mesh: THREE.Group; // Changed to Group for GLTF models
 
     private physicsBody: any;
     private state: EnemyState = 'idle';
@@ -106,12 +108,14 @@ export class Enemy {
 
     // Combat
     private lastAttackTime: number = 0;
-    private target: THREE.Vector3 | null = null;
 
     // Patrol
     private patrolPoints: THREE.Vector3[] = [];
     private currentPatrolIndex: number = 0;
     private waitTime: number = 0;
+
+    // Asset loading
+    private assetManager: AssetManager;
 
     constructor(
         type: EnemyType,
@@ -122,21 +126,17 @@ export class Enemy {
         this.type = type;
         this.stats = { ...ENEMY_CONFIGS[type] };
         this.health = this.stats.maxHealth;
+        this.assetManager = AssetManager.getInstance();
 
-        // Create visual mesh
-        const geometry = new THREE.CapsuleGeometry(0.5, 1.5, 8, 16);
-        const material = new THREE.MeshStandardMaterial({
-            color: this.getEnemyColor(type),
-            roughness: 0.7,
-            metalness: 0.3
-        });
-        this.mesh = new THREE.Mesh(geometry, material);
+        // Create mesh group (will contain model or placeholder)
+        this.mesh = new THREE.Group();
         this.mesh.position.copy(position);
-        this.mesh.castShadow = true;
-        this.mesh.receiveShadow = true;
         scene.add(this.mesh);
 
-        // Create physics body (use DYNAMIC for collision detection and raycasting)
+        // Try to load model, fall back to placeholder
+        this.loadModel();
+
+        // Create physics body
         this.physicsBody = PhysicsBodyFactory.createBox(
             physics,
             { x: 1, y: 2, z: 1 },
@@ -144,6 +144,90 @@ export class Enemy {
             this.mesh
         );
         this.physicsBody.body.position.set(position.x, position.y, position.z);
+    }
+
+    /**
+     * Load enemy model from asset manager
+     */
+    private async loadModel(): Promise<void> {
+        // Find asset config for this enemy type
+        const assetConfig = GAME_ASSETS.find(a => a.id === `enemy_${this.type}`) ||
+                           GAME_ASSETS.find(a => a.id === 'enemy_soldier');
+
+        if (!assetConfig) {
+            console.warn(`[Enemy] No asset config found for ${this.type}`);
+            this.createPlaceholder();
+            return;
+        }
+
+        try {
+            const model = this.assetManager.getGLTF(assetConfig.id);
+            if (model) {
+                // Model already loaded
+                this.attachModel(model);
+            } else {
+                // Load model asynchronously
+                const gltf = await this.assetManager.loadAsset(assetConfig);
+
+                if (gltf && gltf.scene) {
+                    this.attachModel(gltf.scene.clone());
+                } else {
+                    this.createPlaceholder();
+                }
+            }
+        } catch (error) {
+            console.warn(`[Enemy] Failed to load model for ${this.type}:`, error);
+            this.createPlaceholder();
+        }
+    }
+
+    /**
+     * Attach loaded model to mesh
+     */
+    private attachModel(model: THREE.Group): void {
+        // Clear existing children
+        while (this.mesh.children.length > 0) {
+            const child = this.mesh.children[0];
+            this.mesh.remove(child);
+        }
+
+        // Scale and position model appropriately
+        model.scale.setScalar(1);
+        model.position.y = -1; // Adjust to sit on ground
+
+        // Enable shadows
+        model.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        this.mesh.add(model);
+        console.log(`[Enemy] Loaded model for ${this.type}`);
+    }
+
+    /**
+     * Create placeholder geometry (fallback)
+     */
+    private createPlaceholder(): void {
+        // Clear existing children
+        while (this.mesh.children.length > 0) {
+            const child = this.mesh.children[0];
+            this.mesh.remove(child);
+        }
+
+        const geometry = new THREE.CapsuleGeometry(0.5, 1.5, 8, 16);
+        const material = new THREE.MeshStandardMaterial({
+            color: this.getEnemyColor(this.type),
+            roughness: 0.7,
+            metalness: 0.3
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.y = 0;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        this.mesh.add(mesh);
     }
 
     private getEnemyColor(type: EnemyType): number {
@@ -356,12 +440,17 @@ export class Enemy {
             }
 
             // Flash red on hit
-            (this.mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0xff0000);
-            setTimeout(() => {
-                if (!this.isDead) {
-                    (this.mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0x000000);
+            this.mesh.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    const material = child.material as THREE.MeshStandardMaterial;
+                    material.emissive = new THREE.Color(0xff0000);
+                    setTimeout(() => {
+                        if (!this.isDead) {
+                            material.emissive = new THREE.Color(0x000000);
+                        }
+                    }, 100);
                 }
-            }, 100);
+            });
         }
     }
 
@@ -372,8 +461,13 @@ export class Enemy {
         this.isDead = true;
         this.state = 'dead';
 
-        // Change appearance
-        (this.mesh.material as THREE.MeshStandardMaterial).color.setHex(0x333333);
+        // Change appearance - darken all meshes
+        this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                const material = child.material as THREE.MeshStandardMaterial;
+                material.color.setHex(0x333333);
+            }
+        });
 
         // Ragdoll effect - fall over
         this.mesh.rotation.x = Math.PI / 2;
@@ -438,8 +532,18 @@ export class Enemy {
     dispose(): void {
         // Remove mesh from scene
         this.mesh.parent?.remove(this.mesh);
-        (this.mesh.material as THREE.Material).dispose();
-        this.mesh.geometry.dispose();
+
+        // Dispose all geometries and materials in the group
+        this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.geometry.dispose();
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
+        });
 
         // Remove physics body from world (access world through body)
         if (this.physicsBody.body.world) {

@@ -57,18 +57,19 @@ export const GAME_ASSETS: AssetConfig[] = [
         preload: false
     },
 
-    // ============ ENEMIES (Quaternius) ============
-    // TODO: Download Quaternius enemy models
-    {
-        id: 'enemy_mech',
-        type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/mech.glb`,
-        preload: false
-    },
+    // ============ ENEMIES ============
+    // Using available enemy model
     {
         id: 'enemy_soldier',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/soldier.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
+        preload: true
+    },
+    // Fallback for grunt (same model)
+    {
+        id: 'enemy_grunt',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
         preload: false
     },
 
@@ -130,9 +131,10 @@ export function getWeaponAssetId(weaponType: string): string {
 // Helper to get enemy asset ID
 export function getEnemyAssetId(enemyType: string): string {
     const mapping: Record<string, string> = {
-        'grunt': 'enemy_mech',
-        'mech': 'enemy_mech',
-        'soldier': 'enemy_soldier'
+        'grunt': 'enemy_grunt',
+        'soldier': 'enemy_soldier',
+        'heavy': 'enemy_soldier', // Use soldier as fallback
+        'sniper': 'enemy_soldier' // Use soldier as fallback
     };
-    return mapping[enemyType] || 'enemy_mech';
+    return mapping[enemyType] || 'enemy_soldier';
 }
