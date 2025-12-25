@@ -284,6 +284,9 @@ export class Game {
         // Add lights
         this.setupLights();
 
+        // Set initial player position for enemy spawning
+        this.enemies.setPlayerPosition(this.playerPosition);
+
         // Start first wave of enemies
         this.enemies.startWave(1);
 

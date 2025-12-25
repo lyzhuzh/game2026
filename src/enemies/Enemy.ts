@@ -191,9 +191,10 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
-        // Scale and position model appropriately
-        model.scale.setScalar(1);
-        model.position.y = -1; // Adjust to sit on ground
+        // Scale and position model appropriately for anime-style characters
+        // These models are typically much larger, so scale down significantly
+        model.scale.setScalar(0.01); // Anime models are often 100x scale
+        model.position.y = 0; // Model origin at ground level
 
         // Enable shadows
         model.traverse((child) => {
