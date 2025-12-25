@@ -16,6 +16,9 @@ import { ItemManager } from '../items/ItemManager';
 import { SoundManager } from '../audio/SoundManager';
 import { ParticleSystem } from '../particles/ParticleSystem';
 import { ProjectileManager } from '../weapons/ProjectileManager';
+import { AssetManager } from '../assets/AssetManager';
+import { GAME_ASSETS } from '../assets/AssetConfig';
+import { WeaponRenderer } from '../weapons/WeaponRenderer';
 
 /**
  * Main Game Class
@@ -59,6 +62,12 @@ export class Game {
 
     // Particle system
     public readonly particles: ParticleSystem;
+
+    // Asset system
+    public readonly assetManager: AssetManager;
+
+    // Weapon renderer (first-person view)
+    private weaponRenderer: WeaponRenderer;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -129,6 +138,15 @@ export class Game {
         // Use the FPS camera
         this.camera = this.fpsCamera.camera;
         this.camera.position.copy(this.playerPosition);
+
+        // Initialize asset system (singleton)
+        this.assetManager = AssetManager.getInstance();
+
+        // Initialize weapon renderer (attaches weapon models to camera)
+        this.weaponRenderer = new WeaponRenderer(this.scene, this.fpsCamera.camera);
+
+        // Show initial weapon
+        this.weaponRenderer.showWeapon('pistol');
 
         // Create renderer
         const canvas = document.createElement('canvas');
@@ -205,7 +223,7 @@ export class Game {
             onHit: (position, damage) => this.onWeaponHit(position, damage),
             onFire: (_weaponType) => this.onWeaponFire(),
             onReload: () => this.sound.play('reload_start'),
-            onSwitch: (_weaponType) => this.sound.play('weapon_switch'),
+            onSwitch: (weaponType) => this.onWeaponSwitch(weaponType),
             projectileManager: this.projectiles,
             particleSystem: this.particles,
             onFlamethrowerDamage: (origin, direction, range, damage) => this.onFlamethrowerDamage(origin, direction, range, damage)
@@ -234,6 +252,10 @@ export class Game {
         }
 
         console.log('Initializing game...');
+
+        // Initialize asset manager and preload critical assets
+        console.log('[Game] Loading assets...');
+        await this.assetManager.initialize(GAME_ASSETS);
 
         // Initialize time system
         Time.initialize();
@@ -507,6 +529,11 @@ export class Game {
         const fireDirection = this.fpsCamera.getForward();
         this.weapons.setFireData(fireOrigin, fireDirection);
 
+        // Update weapon renderer (sway, recoil)
+        const weaponState = this.weapons.getCurrentWeaponState();
+        const isFiring = this.input.isActionPressed('attack') && (weaponState?.state?.currentAmmo ?? 0) > 0;
+        this.weaponRenderer.update(deltaTime, movementInput, isFiring);
+
         // Update input system (clears per-frame states AFTER consuming)
         this.input.update();
 
@@ -678,6 +705,17 @@ export class Game {
     }
 
     /**
+     * Handle weapon switch (show weapon model)
+     */
+    private onWeaponSwitch(weaponType: string): void {
+        // Play switch sound
+        this.sound.play('weapon_switch');
+
+        // Show weapon model in first-person view
+        this.weaponRenderer.showWeapon(weaponType as any);
+    }
+
+    /**
      * Dispose of resources
      */
     dispose(): void {
@@ -688,6 +726,8 @@ export class Game {
         this.particles.dispose();
         this.projectiles.clear();
         this.ui.dispose();
+        this.weaponRenderer.dispose();
+        this.assetManager.clear();
 
         // Dispose physics
         this.character.dispose();
