@@ -191,13 +191,16 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
-        // Scale and position model appropriately for anime-style characters
-        // These models are typically much larger, so scale down significantly
-        model.scale.setScalar(0.01); // Anime models are often 100x scale
+        // Scale model appropriately - try different scales based on model size
+        // Anime models can vary widely in scale
+        model.scale.setScalar(1); // Start with no scaling
         model.position.y = 0; // Model origin at ground level
 
-        // Rotate model to face forward (anime models often face -Z by default)
-        model.rotation.y = Math.PI; // 180 degree rotation
+        // Reset rotation first
+        model.rotation.set(0, 0, 0);
+
+        // Fix upside-down model by rotating 180 degrees on X axis
+        model.rotation.x = Math.PI; // Flip vertically
 
         // Enable shadows
         model.traverse((child) => {
@@ -208,7 +211,19 @@ export class Enemy {
         });
 
         this.mesh.add(model);
-        console.log(`[Enemy] Loaded model for ${this.type}`);
+        console.log(`[Enemy] Loaded model for ${this.type}, bounding box:`, this.getBoundingBox(model));
+    }
+
+    /**
+     * Get model bounding box for debugging
+     */
+    private getBoundingBox(model: THREE.Object3D): {size: THREE.Vector3, center: THREE.Vector3} {
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+        return { size, center };
     }
 
     /**
