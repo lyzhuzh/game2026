@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A first-person shooter game built with Three.js">
+    <title>FPS Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading-title {
+            font-size: 3rem;
+            color: #e94560;
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+        }
+
+        #loading-bar-container {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        #loading-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            transition: width 0.3s ease;
+        }
+
+        #loading-status {
+            margin-top: 1rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        /* HUD */
+        #hud {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+        }
+
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        #crosshair::before {
+            width: 2px;
+            height: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #crosshair::after {
+            width: 20px;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Click to start overlay */
+        #click-to-start {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 500;
+            cursor: pointer;
+        }
+
+        #click-to-start.hidden {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #click-to-start-text {
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        /* Weapon HUD */
+        #weapon-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: right;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+        }
+
+        #weapon-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #e94560;
+            margin-bottom: 5px;
+        }
+
+        #ammo-count {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        #reserve-ammo {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+
+        /* Health and Armor bars */
+        #status-bars {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 250px;
+        }
+
+        .status-bar-container {
+            margin-bottom: 8px;
+        }
+
+        .status-bar-label {
+            color: white;
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-bar-bg {
+            width: 100%;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-bar-fill {
+            height: 100%;
+            background: #4ade80;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            border-radius: 6px;
+        }
+
+        #armor-bar {
+            background: #60a5fa;
+        }
+
+        /* Score and Wave display */
+        #game-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+        }
+
+        .info-item {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        #score-display {
+            color: #fbbf24;
+        }
+
+        #kills-display {
+            color: #f472b6;
+        }
+
+        #wave-display {
+            color: #60a5fa;
+        }
+
+        /* Death screen */
+        .death-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(139, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 600;
+            pointer-events: none;
+        }
+
+        .death-screen.hidden {
+            display: none;
+        }
+
+        .death-content {
+            color: white;
+            text-align: center;
+            animation: pulse 1s infinite;
+        }
+
+        .death-content h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Crosshair damage effect */
+        #crosshair.damage::before,
+        #crosshair.damage::after {
+            background: #ef4444;
+        }
+
+        /* Damage Numbers */
+        #damage-numbers {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+            overflow: hidden;
+        }
+
+        .damage-number {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4444;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            white-space: nowrap;
+        }
+
+        .damage-number.headshot {
+            font-size: 32px;
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+
+        .damage-number.critical {
+            font-size: 28px;
+            color: #ff6600;
+            text-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            50% {
+                transform: translateY(-30px) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-60px) scale(0.8);
+            }
+        }
+
+        /* Kill Feed */
+        #kill-feed {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            pointer-events: none;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .kill-feed-entry {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+        }
+
+        .kill-feed-entry .killer {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .kill-feed-entry .victim {
+            color: #ff4444;
+            font-weight: bold;
+        }
+
+        .kill-feed-entry .weapon {
+            color: #ffaa00;
+            font-size: 12px;
+        }
+
+        .kill-feed-entry .headshot {
+            color: #ffcc00;
+            font-size: 16px;
+        }
+
+        .kill-feed-entry.fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+
+        /* Ammo Warning */
+        #ammo-warning {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            color: #ff4444;
+            font-size: 1rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        #ammo-warning.show {
+            opacity: 1;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Wave announcement */
+        .wave-announcement {
+            position: fixed;
+            top: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 200;
+        }
+
+        .wave-announcement.hidden {
+            display: none;
+        }
+
+        .wave-announcement.show {
+            opacity: 1;
+        }
+
+        /* Pickup notification */
+        .pickup-notification {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #4ade80;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 200;
+        }
+
+        .pickup-notification.hidden {
+            display: none;
+        }
+
+        .pickup-notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <h1 id="loading-title">FPS 射击游戏</h1>
+            <div id="loading-bar-container">
+                <div id="loading-bar"></div>
+            </div>
+            <p id="loading-status">正在加载...</p>
+        </div>
+
+        <!-- Click to Start Overlay -->
+        <div id="click-to-start">
+            <p id="click-to-start-text">点击开始游戏</p>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="crosshair"></div>
+
+            <!-- Damage Numbers Container -->
+            <div id="damage-numbers"></div>
+
+            <!-- Kill Feed Container -->
+            <div id="kill-feed"></div>
+
+            <!-- Game Info (Score, Kills, Wave) -->
+            <div id="game-info">
+                <div id="score-display" class="info-item">得分: 0</div>
+                <div id="kills-display" class="info-item">击杀: 0</div>
+                <div id="wave-display" class="info-item">波次: 1</div>
+            </div>
+
+            <!-- Status Bars (Health, Armor) -->
+            <div id="status-bars">
+                <div class="status-bar-container">
+                    <div class="status-bar-label">
+                        <span>生命值</span>
+                        <span id="health-text">100 / 100</span>
+                    </div>
+                    <div class="status-bar-bg">
+                        <div id="health-bar" class="status-bar-fill" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="status-bar-container">
+                    <div class="status-bar-label">
+                        <span>护甲</span>
+                        <span id="armor-text">50 / 50</span>
+                    </div>
+                    <div class="status-bar-bg">
+                        <div id="armor-bar" class="status-bar-fill" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weapon Info -->
+            <div id="weapon-info">
+                <div id="weapon-name">手枪</div>
+                <div id="ammo-count">12 / 12</div>
+                <div id="reserve-ammo">备用弹药: 60</div>
+                <!-- Ammo Warning -->
+                <div id="ammo-warning">弹药不足!</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
