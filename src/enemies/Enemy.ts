@@ -199,31 +199,63 @@ export class Enemy {
         debugBox.position.y = 1;
         this.mesh.add(debugBox);
 
-        // Scale model appropriately - try different scales based on model size
-        // Anime models can vary widely in scale
-        model.scale.setScalar(1); // Start with no scaling
-        model.position.y = 0; // Model origin at ground level
+        // Calculate bounding box first to determine proper scale
+        const tempBox = new THREE.Box3().setFromObject(model);
+        const tempSize = new THREE.Vector3();
+        tempBox.getSize(tempSize);
 
-        // Reset rotation first
+        console.log(`[Enemy] ${this.type} raw model size:`, tempSize);
+
+        // Determine scale based on model height
+        // Target height is around 1.7-2.0 units for human-sized character
+        const modelHeight = tempSize.y;
+        let targetScale = 1.0;
+
+        if (modelHeight > 10) {
+            // Model is too large, scale down
+            targetScale = 1.8 / modelHeight;
+        } else if (modelHeight < 1) {
+            // Model is too small, scale up
+            targetScale = 1.8 / modelHeight;
+        }
+
+        console.log(`[Enemy] ${this.type} applying scale:`, targetScale);
+
+        // Apply scale
+        model.scale.setScalar(targetScale);
+
+        // Reset position and rotation
+        model.position.set(0, 0, 0);
         model.rotation.set(0, 0, 0);
 
-        // Fix upside-down model by rotating 180 degrees on X axis
-        model.rotation.x = Math.PI; // Flip vertically
-
-        // Enable shadows
+        // Enable shadows and ensure materials render
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+
+                // Ensure material is visible
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => {
+                            mat.transparent = false;
+                            mat.opacity = 1.0;
+                            mat.visible = true;
+                        });
+                    } else {
+                        child.material.transparent = false;
+                        child.material.opacity = 1.0;
+                        child.material.visible = true;
+                    }
+                }
             }
         });
 
         this.mesh.add(model);
 
         const bbox = this.getBoundingBox(model);
-        console.log(`[Enemy] ${this.type} model loaded at position:`, this.mesh.position);
-        console.log(`[Enemy] Model bounding box size:`, bbox.size, 'center:', bbox.center);
-        console.log(`[Enemy] Mesh world position:`, this.mesh.position);
+        console.log(`[Enemy] ${this.type} at position:`, this.mesh.position);
+        console.log(`[Enemy] Scaled model bounding box:`, bbox.size);
     }
 
     /**
