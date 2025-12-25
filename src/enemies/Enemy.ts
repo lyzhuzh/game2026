@@ -199,6 +199,15 @@ export class Enemy {
         debugBox.position.y = 1;
         this.mesh.add(debugBox);
 
+        // Debug: Log model structure
+        console.log(`[Enemy] ${this.type} model structure:`);
+        model.traverse((child, index) => {
+            const depth = child.parent ? child.parent.parents.length : 0;
+            const indent = '  '.repeat(depth);
+            const type = child instanceof THREE.Mesh ? 'Mesh' : child instanceof THREE.Group ? 'Group' : child.type;
+            console.log(`[Enemy] ${indent}${type}: ${child.name || 'unnamed'} (depth: ${depth})`);
+        });
+
         // Debug: Count meshes in model
         let meshCount = 0;
         model.traverse((child) => {
@@ -252,17 +261,22 @@ export class Enemy {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 child.visible = true;
-
-                console.log(`[Enemy] Applied material to mesh:`, child.name || 'unnamed');
             }
         });
 
         this.mesh.add(model);
 
-        const bbox = this.getBoundingBox(model);
-        console.log(`[Enemy] ${this.type} at position:`, this.mesh.position);
-        console.log(`[Enemy] Scaled model bounding box:`, bbox.size);
-        console.log(`[Enemy] Model children count:`, model.children.length);
+        // Check world position after adding to scene
+        console.log(`[Enemy] ${this.type} mesh position:`, this.mesh.position);
+        console.log(`[Enemy] ${this.type} model world position (should be same as mesh):`);
+
+        model.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                const worldPos = new THREE.Vector3();
+                child.getWorldPosition(worldPos);
+                console.log(`[Enemy]   Mesh world pos: ${child.name || 'unnamed'}:`, worldPos);
+            }
+        });
     }
 
     /**
