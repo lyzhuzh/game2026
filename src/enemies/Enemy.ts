@@ -587,7 +587,7 @@ export class Enemy {
 
         // Ragdoll effect - fall over
         this.mesh.rotation.x = Math.PI / 2;
-        this.mesh.position.y = 0.5;
+        this.mesh.position.y = 0.1;
 
         // Call death callback
         if (this.onDeathCallback) {
