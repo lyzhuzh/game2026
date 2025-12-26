@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -161,19 +162,15 @@ export class Enemy {
         }
 
         try {
-            const model = this.assetManager.getGLTF(assetConfig.id);
-            if (model) {
-                // Model already loaded
-                this.attachModel(model);
-            } else {
-                // Load model asynchronously
-                const gltf = await this.assetManager.loadAsset(assetConfig);
+            // Always load fresh copy (don't use cached clone)
+            const gltf = await this.assetManager.loadAsset(assetConfig);
 
-                if (gltf && gltf.scene) {
-                    this.attachModel(gltf.scene.clone());
-                } else {
-                    this.createPlaceholder();
-                }
+            if (gltf && gltf.scene) {
+                // Use deep clone for GLTF with skeletons/materials
+                const clonedScene = THREE.SkeletonUtils.clone(gltf.scene);
+                this.attachModel(clonedScene);
+            } else {
+                this.createPlaceholder();
             }
         } catch (error) {
             console.warn(`[Enemy] Failed to load model for ${this.type}:`, error);
@@ -191,29 +188,15 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
-        // Add debug box (always visible)
-        const debugBox = new THREE.Mesh(
-            new THREE.BoxGeometry(1, 2, 1),
-            new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
-        );
-        debugBox.position.y = 1;
-        debugBox.name = 'DebugBox';
-        this.mesh.add(debugBox);
-        console.log(`[Enemy] ${this.type} Added debug wireframe box`);
-
-        // Debug: Count meshes in model
-        let meshCount = 0;
-        model.traverse((child) => {
-            if (child instanceof THREE.Mesh) meshCount++;
-        });
-        console.log(`[Enemy] ${this.type} model contains ${meshCount} meshes`);
+        // Debug: Log mesh position and parent
+        console.log(`[Enemy] ${this.type} mesh.position:`, this.mesh.position);
+        console.log(`[Enemy] ${this.type} mesh.parent:`, this.mesh.parent?.type || 'null');
+        console.log(`[Enemy] ${this.type} mesh in scene:`, this.mesh.parent === this.mesh.scene);
 
         // Calculate bounding box first to determine proper scale
         const tempBox = new THREE.Box3().setFromObject(model);
         const tempSize = new THREE.Vector3();
         tempBox.getSize(tempSize);
-
-        console.log(`[Enemy] ${this.type} raw model size:`, tempSize);
 
         // Determine scale based on model height
         const modelHeight = tempSize.y;
@@ -223,16 +206,15 @@ export class Enemy {
         } else if (modelHeight < 1) {
             targetScale = 1.8 / modelHeight;
         }
-        console.log(`[Enemy] ${this.type} applying scale:`, targetScale);
 
         // Apply scale
         model.scale.setScalar(targetScale);
         model.position.set(0, 0, 0);
         model.rotation.set(0, 0, 0);
 
-        // Use MeshBasicMaterial (no lighting needed)
+        // Use solid MeshBasicMaterial with bright color
         const basicMaterial = new THREE.MeshBasicMaterial({
-            color: this.getEnemyColor(this.type),
+            color: 0xff0000,
             side: THREE.DoubleSide
         });
 
@@ -240,23 +222,17 @@ export class Enemy {
             if (child instanceof THREE.Mesh) {
                 child.material = basicMaterial;
                 child.visible = true;
-                console.log(`[Enemy] Applied basic material to mesh:`, child.name);
+                child.castShadow = true;
+                child.receiveShadow = true;
             }
         });
 
         this.mesh.add(model);
 
-        // Check if meshes are actually in scene
-        let visibleMeshCount = 0;
-        this.mesh.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-                visibleMeshCount++;
-                const worldPos = new THREE.Vector3();
-                child.getWorldPosition(worldPos);
-                console.log(`[Enemy] Visible mesh: ${child.name || 'unnamed'} at world:`, worldPos);
-            }
-        });
-        console.log(`[Enemy] ${this.type} total visible meshes in scene: ${visibleMeshCount}`);
+        // Log world position after adding
+        const worldPos = new THREE.Vector3();
+        this.mesh.getWorldPosition(worldPos);
+        console.log(`[Enemy] ${this.type} mesh world position after add:`, worldPos);
     }
 
     /**
