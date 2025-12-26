@@ -154,7 +154,7 @@ export class EnemyManager {
 
         return new THREE.Vector3(
             center.x + Math.cos(angle) * distance,
-            1, // Ground level
+            0, // Ground level
             center.z + Math.sin(angle) * distance
         );
     }

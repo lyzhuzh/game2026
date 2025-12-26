@@ -4,7 +4,6 @@
  */
 
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -162,12 +161,12 @@ export class Enemy {
         }
 
         try {
-            // Always load fresh copy (don't use cached clone)
+            // Always load fresh copy
             const gltf = await this.assetManager.loadAsset(assetConfig);
 
             if (gltf && gltf.scene) {
-                // Use deep clone for GLTF with skeletons/materials
-                const clonedScene = THREE.SkeletonUtils.clone(gltf.scene);
+                // Deep clone the scene manually
+                const clonedScene = this.deepCloneGltf(gltf.scene);
                 this.attachModel(clonedScene);
             } else {
                 this.createPlaceholder();
@@ -176,6 +175,65 @@ export class Enemy {
             console.warn(`[Enemy] Failed to load model for ${this.type}:`, error);
             this.createPlaceholder();
         }
+    }
+
+    /**
+     * Deep clone GLTF scene with materials and skeleton support
+     */
+    private deepCloneGltf(source: THREE.Object3D): THREE.Object3D {
+        // First, collect all bones from original source by name
+        const originalBonesByName = new Map<string, THREE.Bone>();
+        source.traverse((child) => {
+            if (child instanceof THREE.Bone) {
+                originalBonesByName.set(child.name, child as THREE.Bone);
+            }
+        });
+
+        // Clone the entire scene
+        const clone = source.clone();
+
+        // Collect cloned bones by name
+        const clonedBonesByName = new Map<string, THREE.Bone>();
+        clone.traverse((child) => {
+            if (child instanceof THREE.Bone) {
+                clonedBonesByName.set(child.name, child as THREE.Bone);
+            }
+        });
+
+        // Handle SkinnedMesh - update skeleton to use cloned bones
+        clone.traverse((child) => {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
+                const skinnedMesh = child as THREE.SkinnedMesh;
+                const originalSkeleton = skinnedMesh.skeleton;
+
+                if (originalSkeleton) {
+                    // Map original bones to cloned bones by name
+                    const clonedBones = originalSkeleton.bones.map(bone => {
+                        return clonedBonesByName.get(bone.name) || bone;
+                    });
+
+                    // Create new skeleton with cloned bones
+                    skinnedMesh.skeleton = new THREE.Skeleton(clonedBones, originalSkeleton.boneInverses);
+
+                    // Update bind matrix
+                    skinnedMesh.bind(skinnedMesh.skeleton, skinnedMesh.bindMatrix);
+                }
+            }
+
+            // Clone materials
+            if (child instanceof THREE.Mesh) {
+                const mesh = child as THREE.Mesh;
+                if (mesh.material) {
+                    if (Array.isArray(mesh.material)) {
+                        mesh.material = mesh.material.map(mat => mat.clone());
+                    } else {
+                        mesh.material = mesh.material.clone();
+                    }
+                }
+            }
+        });
+
+        return clone;
     }
 
     /**
@@ -188,51 +246,73 @@ export class Enemy {
             this.mesh.remove(child);
         }
 
-        // Debug: Log mesh position and parent
-        console.log(`[Enemy] ${this.type} mesh.position:`, this.mesh.position);
-        console.log(`[Enemy] ${this.type} mesh.parent:`, this.mesh.parent?.type || 'null');
-        console.log(`[Enemy] ${this.type} mesh in scene:`, this.mesh.parent === this.mesh.scene);
+        // Update skeleton matrices before calculating bounding box
+        model.updateMatrixWorld(true);
 
-        // Calculate bounding box first to determine proper scale
+        // Force update all SkinnedMesh bones
+        model.traverse((child) => {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
+                const skinnedMesh = child as THREE.SkinnedMesh;
+                skinnedMesh.updateMatrixWorld(true);
+            }
+        });
+
+        // Calculate bounding box for scale
         const tempBox = new THREE.Box3().setFromObject(model);
         const tempSize = new THREE.Vector3();
         tempBox.getSize(tempSize);
 
-        // Determine scale based on model height
+        // Determine scale - target height ~2.0 units
         const modelHeight = tempSize.y;
-        let targetScale = 1.0;
-        if (modelHeight > 10) {
-            targetScale = 1.8 / modelHeight;
-        } else if (modelHeight < 1) {
-            targetScale = 1.8 / modelHeight;
-        }
+        const targetScale = modelHeight > 0 ? 2.0 / modelHeight : 1;
 
-        // Apply scale
+        // Apply scale to model
         model.scale.setScalar(targetScale);
-        model.position.set(0, 0, 0);
+
+        // Update matrices after scale
+        model.updateMatrix();
+        model.updateMatrixWorld(true);
+
+        // Force update all SkinnedMesh bones and matrices
+        model.traverse((child) => {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
+                const skinnedMesh = child as THREE.SkinnedMesh;
+                skinnedMesh.updateMatrixWorld(true);
+            }
+        });
+
+        // Recalculate bounding box after scaling to position model on ground
+        const scaledBox = new THREE.Box3().setFromObject(model);
+        const minY = scaledBox.min.y;
+        const maxY = scaledBox.max.y;
+
+        // Position model so its bottom is at y=0 (on the ground)
+        // For SkinnedMesh, the bounding box may not reflect actual feet position
+        // Add significant offset to push model down to ground
+        const groundOffset = 1.0; // Extra offset to push model down
+        model.position.set(0, -minY - groundOffset, 0);
         model.rotation.set(0, 0, 0);
 
-        // Use solid MeshBasicMaterial with bright color
-        const basicMaterial = new THREE.MeshBasicMaterial({
+        // Apply simple red material (use MeshStandardMaterial for SkinnedMesh compatibility)
+        const material = new THREE.MeshStandardMaterial({
             color: 0xff0000,
+            roughness: 0.5,
+            metalness: 0.1,
             side: THREE.DoubleSide
         });
 
+        let appliedCount = 0;
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-                child.material = basicMaterial;
+                child.material = material;
                 child.visible = true;
                 child.castShadow = true;
                 child.receiveShadow = true;
+                appliedCount++;
             }
         });
 
         this.mesh.add(model);
-
-        // Log world position after adding
-        const worldPos = new THREE.Vector3();
-        this.mesh.getWorldPosition(worldPos);
-        console.log(`[Enemy] ${this.type} mesh world position after add:`, worldPos);
     }
 
     /**
