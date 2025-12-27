@@ -8,6 +8,7 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
+import { Time } from '../core/Time';
 
 export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
 export type EnemyType = 'grunt' | 'soldier' | 'heavy' | 'sniper';
@@ -97,7 +98,7 @@ export class Enemy {
     public readonly mesh: THREE.Group; // Changed to Group for GLTF models
 
     private physicsBody: any;
-    private state: EnemyState = 'idle';
+    private state: EnemyState = 'patrol'; // Start in patrol mode instead of idle
     private health: number;
     private isDead: boolean = false;
 
@@ -113,9 +114,21 @@ export class Enemy {
     private patrolPoints: THREE.Vector3[] = [];
     private currentPatrolIndex: number = 0;
     private waitTime: number = 0;
+    private randomPatrolTarget: THREE.Vector3 | null = null;
+    private randomPatrolTimer: number = 0;
 
     // Asset loading
     private assetManager: AssetManager;
+
+    // Animation
+    private mixer: THREE.AnimationMixer | null = null;
+    private animations: Map<string, THREE.AnimationClip> = new Map();
+    private currentAction: THREE.AnimationAction | null = null;
+    private previousState: EnemyState = 'idle';
+
+    // Procedural animation (for models without animations)
+    private walkCycleTime: number = 0;
+    private modelRoot: THREE.Group | null = null;
 
     constructor(
         type: EnemyType,
@@ -130,7 +143,7 @@ export class Enemy {
 
         // Create mesh group (will contain model or placeholder)
         this.mesh = new THREE.Group();
-        this.mesh.position.copy(position);
+        this.mesh.position.set(position.x, position.y + 1, position.z); // Y+1 to stand on ground
         scene.add(this.mesh);
 
         // Try to load model, fall back to placeholder
@@ -143,7 +156,6 @@ export class Enemy {
             { type: 'dynamic', mass: 50, fixedRotation: true, linearDamping: 0.1 },
             this.mesh
         );
-        this.physicsBody.body.position.set(position.x, position.y, position.z);
     }
 
     /**
@@ -167,7 +179,10 @@ export class Enemy {
             if (gltf && gltf.scene) {
                 // Deep clone the scene manually
                 const clonedScene = this.deepCloneGltf(gltf.scene);
-                this.attachModel(clonedScene);
+
+                // Extract animations if available
+                const animations = gltf.animations || [];
+                this.attachModel(clonedScene, animations);
             } else {
                 this.createPlaceholder();
             }
@@ -239,11 +254,29 @@ export class Enemy {
     /**
      * Attach loaded model to mesh
      */
-    private attachModel(model: THREE.Group): void {
+    private attachModel(model: THREE.Group, animations: THREE.AnimationClip[] = []): void {
         // Clear existing children
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];
             this.mesh.remove(child);
+        }
+
+        // Setup animation mixer and clips
+        if (animations.length > 0) {
+            this.mixer = new THREE.AnimationMixer(model);
+
+            // Store animations by name for easy access
+            for (const clip of animations) {
+                this.animations.set(clip.name, clip);
+                console.log(`[Enemy] Found animation: "${clip.name}" (duration: ${clip.duration.toFixed(2)}s)`);
+            }
+
+            console.log(`[Enemy] Loaded ${animations.length} animations: ${animations.map(a => a.name).join(', ')}`);
+
+            // Play idle animation by default if available
+            this.playAnimation('idle', true);
+        } else {
+            console.log(`[Enemy] No animations found in model`);
         }
 
         // Update skeleton matrices before calculating bounding box
@@ -293,26 +326,19 @@ export class Enemy {
         model.position.set(0, -minY - groundOffset, 0);
         model.rotation.set(0, 0, 0);
 
-        // Apply simple red material (use MeshStandardMaterial for SkinnedMesh compatibility)
-        const material = new THREE.MeshStandardMaterial({
-            color: 0xff0000,
-            roughness: 0.5,
-            metalness: 0.1,
-            side: THREE.DoubleSide
-        });
-
-        let appliedCount = 0;
+        // Keep original materials, just ensure visibility and shadows
         model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-                child.material = material;
                 child.visible = true;
                 child.castShadow = true;
                 child.receiveShadow = true;
-                appliedCount++;
             }
         });
 
         this.mesh.add(model);
+
+        // Save model root reference for procedural animation
+        this.modelRoot = model;
     }
 
     /**
@@ -361,10 +387,163 @@ export class Enemy {
     }
 
     /**
+     * Play animation by name
+     */
+    private playAnimation(name: string, loop: boolean = false): void {
+        if (!this.mixer) return;
+
+        // First, try to find animation by exact name
+        let clip = this.animations.get(name);
+
+        // If not found, try common variations
+        if (!clip) {
+            const variations = this.getAnimationVariations(name);
+            for (const variation of variations) {
+                if (this.animations.has(variation)) {
+                    clip = this.animations.get(variation);
+                    break;
+                }
+            }
+        }
+
+        // If still not found, try fuzzy matching (contains the keyword)
+        if (!clip) {
+            for (const [animName, animClip] of this.animations) {
+                const animNameLower = animName.toLowerCase();
+                const nameLower = name.toLowerCase();
+
+                // Match: idle, walk, run, attack/shoot
+                if ((nameLower === 'idle' && (animNameLower.includes('idle'))) ||
+                    (nameLower === 'walk' && (animNameLower.includes('walk'))) ||
+                    (nameLower === 'run' && (animNameLower.includes('run'))) ||
+                    (nameLower === 'attack' && (animNameLower.includes('shoot') || animNameLower.includes('attack')))) {
+                    clip = animClip;
+                    console.log(`[Enemy] Fuzzy matched: "${name}" -> "${animName}"`);
+                    break;
+                }
+            }
+        }
+
+        if (!clip) {
+            console.log(`[Enemy] Animation "${name}" not found`);
+            return;
+        }
+
+        // Fade out current action if exists
+        if (this.currentAction) {
+            this.currentAction.fadeOut(0.2);
+        }
+
+        // Create and play new action
+        const action = this.mixer.clipAction(clip);
+        action.reset();
+        action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+        action.clampWhenFinished = !loop;
+        action.fadeIn(0.2);
+        action.play();
+
+        this.currentAction = action;
+        console.log(`[Enemy] Playing animation: "${name}"`);
+    }
+
+    /**
+     * Get common animation name variations
+     */
+    private getAnimationVariations(baseName: string): string[] {
+        const variations: Record<string, string[]> = {
+            'idle': ['Idle', 'idle_', 'Stand', 'stand', 'Breathing', 'breathing'],
+            'walk': ['Walk', 'walk_', 'Walking', 'walking', 'Run', 'run_', 'Running', 'running'],
+            'run': ['Run', 'run_', 'Running', 'running', 'Sprint', 'sprint'],
+            'attack': ['Attack', 'attack_', 'Hit', 'hit_', 'Strike', 'strike', 'Shoot', 'shoot_', 'Shooting', 'shooting']
+        };
+
+        return variations[baseName] || [];
+    }
+
+    /**
+     * Update animation based on state
+     */
+    private updateAnimation(): void {
+        // If we have animation mixer with clips, use it
+        if (this.mixer && this.animations.size > 0) {
+            // Only switch animation if state changed
+            if (this.state !== this.previousState) {
+                switch (this.state) {
+                    case 'idle':
+                        this.playAnimation('idle', true);
+                        break;
+                    case 'patrol':
+                        this.playAnimation('walk', true);
+                        break;
+                    case 'chase':
+                        this.playAnimation('run', true);
+                        break;
+                    case 'attack':
+                        this.playAnimation('attack', false);
+                        break;
+                }
+                this.previousState = this.state;
+            }
+        }
+        // No fallback to procedural animation - use models with animations
+    }
+
+    /**
+     * Update procedural animation (simple bob/bounce when moving)
+     */
+    private updateProceduralAnimation(): void {
+        if (!this.modelRoot || this.isDead) return;
+
+        const isMoving = this.state === 'chase' || this.state === 'patrol';
+
+        if (isMoving) {
+            // Increment walk cycle
+            this.walkCycleTime += 0.15;
+
+            // Bob up and down to simulate walking
+            const bobAmount = 0.08;
+            const bobOffset = Math.sin(this.walkCycleTime * Math.PI * 2) * bobAmount;
+
+            // Slight forward/backward tilt
+            const tiltAmount = 0.03;
+            const tiltOffset = Math.cos(this.walkCycleTime * Math.PI * 2) * tiltAmount;
+
+            // Get original position (first time)
+            if (!this.modelRoot.userData.originalY) {
+                this.modelRoot.userData.originalY = this.modelRoot.position.y;
+            }
+            const originalY = this.modelRoot.userData.originalY;
+
+            // Apply bobbing motion
+            this.modelRoot.position.y = originalY + bobOffset;
+            this.modelRoot.rotation.x = tiltOffset;
+
+            // Add slight side-to-side sway
+            this.modelRoot.rotation.z = Math.sin(this.walkCycleTime * Math.PI) * 0.02;
+        } else {
+            // Return to idle pose
+            if (this.modelRoot.userData.originalY !== undefined) {
+                this.modelRoot.position.y = this.modelRoot.userData.originalY;
+            }
+            this.modelRoot.rotation.x = 0;
+            this.modelRoot.rotation.z = 0;
+
+            // Slowly reset walk cycle
+            this.walkCycleTime *= 0.9;
+        }
+    }
+
+    /**
      * Update enemy
      */
     update(deltaTime: number, playerPosition: THREE.Vector3): void {
         if (this.isDead) return;
+
+        // Update animation mixer
+        if (this.mixer) {
+            this.mixer.update(deltaTime);
+            this.updateAnimation();
+        }
 
         // Update state based on player proximity
         this.updateState(playerPosition);
@@ -438,23 +617,56 @@ export class Enemy {
      * Patrol state
      */
     private updatePatrol(deltaTime: number): void {
-        if (this.patrolPoints.length === 0) return;
+        // If patrol points are set, use them
+        if (this.patrolPoints.length > 0) {
+            const targetPoint = this.patrolPoints[this.currentPatrolIndex];
+            const direction = new THREE.Vector3()
+                .subVectors(targetPoint, this.mesh.position)
+                .normalize();
 
-        // Move towards current patrol point
-        const targetPoint = this.patrolPoints[this.currentPatrolIndex];
+            this.move(direction, this.stats.moveSpeed);
+            this.faceTarget(targetPoint);
+
+            // Check if reached patrol point
+            if (this.mesh.position.distanceTo(targetPoint) < 1) {
+                this.waitTime += deltaTime;
+                if (this.waitTime > 2) {
+                    this.waitTime = 0;
+                    this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolPoints.length;
+                }
+            }
+            return;
+        }
+
+        // Random patrol when no patrol points set
+        this.randomPatrolTimer -= deltaTime;
+
+        // Pick a new random target
+        if (!this.randomPatrolTarget || this.randomPatrolTimer <= 0) {
+            const currentPos = this.mesh.position;
+            const randomAngle = Math.random() * Math.PI * 2;
+            const randomDistance = 5 + Math.random() * 10; // 5-15 units away
+
+            this.randomPatrolTarget = new THREE.Vector3(
+                currentPos.x + Math.cos(randomAngle) * randomDistance,
+                currentPos.y,
+                currentPos.z + Math.sin(randomAngle) * randomDistance
+            );
+            this.randomPatrolTimer = 3 + Math.random() * 4; // Move for 3-7 seconds
+        }
+
+        // Move towards random target
         const direction = new THREE.Vector3()
-            .subVectors(targetPoint, this.mesh.position)
+            .subVectors(this.randomPatrolTarget, this.mesh.position)
             .normalize();
 
-        this.move(direction, this.stats.moveSpeed);
+        this.move(direction, this.stats.moveSpeed * 0.5); // Slower when patrolling
+        this.faceTarget(this.randomPatrolTarget);
 
-        // Check if reached patrol point
-        if (this.mesh.position.distanceTo(targetPoint) < 1) {
-            this.waitTime += deltaTime;
-            if (this.waitTime > 2) {
-                this.waitTime = 0;
-                this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolPoints.length;
-            }
+        // Check if reached target
+        if (this.mesh.position.distanceTo(this.randomPatrolTarget) < 1) {
+            this.randomPatrolTarget = null;
+            this.randomPatrolTimer = 1 + Math.random() * 2; // Wait 1-3 seconds before moving again
         }
     }
 
@@ -492,9 +704,23 @@ export class Enemy {
      * Move enemy - set velocity for physics body
      */
     private move(direction: THREE.Vector3, speed: number): void {
-        // For dynamic bodies, we set velocity directly (units per second)
-        const velocity = direction.clone().multiplyScalar(speed);
-        this.physicsBody.body.velocity.set(velocity.x, 0, velocity.z);
+        // Get delta time from Time system
+        const deltaTime = Time.deltaTime;
+
+        // Calculate movement distance (only on XZ plane)
+        const distance = speed * deltaTime;
+        const movement = new THREE.Vector3(
+            direction.x * distance,
+            0,  // Don't change Y
+            direction.z * distance
+        );
+
+        // Update mesh position directly
+        this.mesh.position.add(movement);
+
+        // Sync physics body to match (keep Y at 1 to stay above ground)
+        this.physicsBody.body.position.set(this.mesh.position.x, 1, this.mesh.position.z);
+        this.physicsBody.body.velocity.set(0, 0, 0); // Clear velocity since we're moving manually
     }
 
     /**
@@ -506,9 +732,9 @@ export class Enemy {
             .setY(0)
             .normalize();
 
-        if (direction.length() > 0.01) {
+        if (direction.length() > 0.01 && this.modelRoot) {
             const angle = Math.atan2(direction.x, direction.z);
-            this.mesh.rotation.y = angle;
+            this.modelRoot.rotation.y = angle;
         }
     }
 
@@ -558,13 +784,17 @@ export class Enemy {
             // Flash red on hit
             this.mesh.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
-                    const material = child.material as THREE.MeshStandardMaterial;
-                    material.emissive = new THREE.Color(0xff0000);
-                    setTimeout(() => {
-                        if (!this.isDead) {
-                            material.emissive = new THREE.Color(0x000000);
-                        }
-                    }, 100);
+                    const material = child.material;
+                    // Check if material supports emissive (MeshStandardMaterial, MeshPhongMaterial, etc.)
+                    if ('emissive' in material) {
+                        const mat = material as THREE.MeshStandardMaterial;
+                        mat.emissive = new THREE.Color(0xff0000);
+                        setTimeout(() => {
+                            if (!this.isDead && mat.emissive) {
+                                mat.emissive = new THREE.Color(0x000000);
+                            }
+                        }, 100);
+                    }
                 }
             });
         }
@@ -580,8 +810,11 @@ export class Enemy {
         // Change appearance - darken all meshes
         this.mesh.traverse((child) => {
             if (child instanceof THREE.Mesh) {
-                const material = child.material as THREE.MeshStandardMaterial;
-                material.color.setHex(0x333333);
+                const material = child.material;
+                // Check if material has color property
+                if ('color' in material) {
+                    material.color.setHex(0x333333);
+                }
             }
         });
 
@@ -646,6 +879,12 @@ export class Enemy {
      * Dispose
      */
     dispose(): void {
+        // Stop and cleanup animation mixer
+        if (this.mixer) {
+            this.mixer.stopAllAction();
+            this.mixer = null;
+        }
+
         // Remove mesh from scene
         this.mesh.parent?.remove(this.mesh);
 

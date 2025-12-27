@@ -58,17 +58,17 @@ export const GAME_ASSETS: AssetConfig[] = [
     },
 
     // ============ ENEMIES ============
-    // Using anime-style character models (Zenless Zone Zero)
+    // Animated character model with Idle, Walk, Run, Shoot animations
     {
         id: 'enemy_grunt',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/anby_demara_zzz.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/corin_wickes.glb`,
         preload: true
     },
     {
         id: 'enemy_soldier',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/nicole_demara_zzz.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/corin_wickes.glb`,
         preload: true
     },
     {
