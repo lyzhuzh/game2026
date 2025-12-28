@@ -121,11 +121,52 @@ WeaponManager 处理：
 
 `LevelBuilder` 从环境模块（Kenney Space Kit 模型）生成程序化关卡。
 
+### 调试工具 (ANT-DEBUG)
+
+`DebugTools` 类 (src/core/DebugTools.ts) 提供 3D 场景测量和标记功能，在游戏初始化时自动激活。
+
+**6 种标记模式**（数字键 1-6 切换）：
+
+| 模式 | 快捷键 | 功能 |
+|------|--------|------|
+| POINT | `1` | 单点标记 |
+| BOUNDS | `2` | 4点矩形边界测量（墙壁、窗口等） |
+| DISTANCE | `3` | 2点距离测量 |
+| PATH | `4` | 多点路径标记，自动计算总长度 |
+| AREA | `5` | 多边形面积计算 |
+| BOX | `6` | 2点盒子（对角点） |
+
+**物体类型**（Shift + 数字键切换）：
+- `Shift+1` WALL（墙壁）
+- `Shift+2` WINDOW（窗口）
+- `Shift+3` PLATFORM（平台）
+- `Shift+4` ENEMY（敌人）
+- `Shift+5` WEAPON（武器）
+
+**操作快捷键**：
+- **`M`** - 标记点（通过准星瞄准场景中的物体）
+- **`C`** - 清除所有标记
+- **`U`** - 撤销上一步
+- **`H`** - 显示帮助
+- **`P`** - 打印测量摘要
+
+**特性**：
+- 自动绘制边界框和连线
+- 自动计算距离、面积、尺寸
+- 生成可直接使用的代码片段
+- 详细的控制台输出
+
+使用示例：测量墙壁边界
+1. 按 `2` 切换到 BOUNDS 模式
+2. 按 `Shift+1` 设置物体类型为 WALL
+3. 用准星瞄准墙壁的四个角，按 `M` 标记
+4. 标记完成后自动输出边界信息和代码片段
+
 ## 文件结构
 
 ```
 src/
-├── core/           # Game, GameLoop, Time
+├── core/           # Game, GameLoop, Time, DebugTools
 ├── player/         # 玩家状态, FirstPersonCamera, MovementController
 ├── physics/        # PhysicsWorld, CharacterController, PhysicsBody
 ├── weapons/        # WeaponManager, HitscanWeapon, ProjectileWeapon, WeaponRenderer
