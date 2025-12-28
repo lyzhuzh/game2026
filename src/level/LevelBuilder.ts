@@ -501,44 +501,56 @@ export class LevelBuilder {
 
     /**
      * Add area dividers - 创建区域分隔墙
-     * 将场地分成4个区域，中间留有通道
+     * 使用集装箱紧密排列成实心墙，将场地分成4个区域
      */
     private async addAreaDividers(): Promise<void> {
         // 使用集装箱作为分隔墙
         const cargoModel = await this.getModel('env_cargo_a');
         if (!cargoModel) return;
 
-        // 十字形分隔方案
-        // 东西向分隔墙（Z = -20），中间留出8单位宽的通道
-        const dividerZ = -20;
-        const channelWidth = 8;
+        // 集装箱尺寸（大约）
+        const cargoSize = 4;
+        const wallThickness = 2; // 2层集装箱堆叠
 
-        // 东西向墙 - 北半部分
-        for (let x = -45; x <= -channelWidth / 2; x += 5) {
-            await this.spawnDividerObstacle(cargoModel, x, dividerZ);
+        // 通道宽度
+        const channelWidth = 10;
+
+        // 东西向集装箱墙（Z = -15）
+        const wallZ = -15;
+        // 北半部分（X < -通道/2）
+        for (let layer = 0; layer < wallThickness; layer++) {
+            for (let x = -48; x < -channelWidth / 2; x += cargoSize) {
+                await this.spawnDividerObstacle(cargoModel, x, wallZ, layer);
+            }
         }
-        // 东西向墙 - 南半部分
-        for (let x = channelWidth / 2; x <= 45; x += 5) {
-            await this.spawnDividerObstacle(cargoModel, x, dividerZ);
+        // 南半部分（X > 通道/2）
+        for (let layer = 0; layer < wallThickness; layer++) {
+            for (let x = channelWidth / 2; x < 48; x += cargoSize) {
+                await this.spawnDividerObstacle(cargoModel, x, wallZ, layer);
+            }
         }
 
-        // 南北向分隔墙（X = 0），中间留出8单位宽的通道
-        const dividerX = 0;
-
-        // 南北向墙 - 西半部分
-        for (let z = -45; z <= -channelWidth / 2; z += 5) {
-            await this.spawnDividerObstacle(cargoModel, dividerX - 5, z);
+        // 南北向集装箱墙（X = -2）
+        const wallX = -2;
+        // 西半部分（Z < -通道/2）
+        for (let layer = 0; layer < wallThickness; layer++) {
+            for (let z = -48; z < -channelWidth / 2; z += cargoSize) {
+                await this.spawnDividerObstacle(cargoModel, wallX, z, layer);
+            }
         }
-        // 南北向墙 - 东半部分
-        for (let z = channelWidth / 2; z <= 45; z += 5) {
-            await this.spawnDividerObstacle(cargoModel, dividerX - 5, z);
+        // 东半部分（Z > 通道/2）
+        for (let layer = 0; layer < wallThickness; layer++) {
+            for (let z = channelWidth / 2; z < 48; z += cargoSize) {
+                await this.spawnDividerObstacle(cargoModel, wallX, z, layer);
+            }
         }
     }
 
     /**
      * 生成单个分隔障碍物并添加物理碰撞
+     * @param layer - 堆叠层级，0为底层
      */
-    private async spawnDividerObstacle(model: THREE.Group, x: number, z: number): Promise<void> {
+    private async spawnDividerObstacle(model: THREE.Group, x: number, z: number, layer: number = 0): Promise<void> {
         const obstacle = this.deepCloneGltf(model);
 
         // 缩放集装箱
@@ -546,10 +558,15 @@ export class LevelBuilder {
         obstacle.scale.setScalar(scaleFactor);
         obstacle.updateMatrixWorld(true);
 
-        // 获取边界并设置位置
+        // 获取边界
         const box = new THREE.Box3().setFromObject(obstacle);
-        obstacle.position.set(x, -box.min.y, z);
-        obstacle.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
+        const cargoHeight = box.max.y - box.min.y;
+
+        // 设置位置（考虑堆叠层级）
+        obstacle.position.set(x, -box.min.y + layer * cargoHeight, z);
+
+        // 集装箱墙不随机旋转，保持一致
+        obstacle.rotation.y = 0;
 
         // 添加到场景
         this.scene.add(obstacle);
@@ -571,17 +588,12 @@ export class LevelBuilder {
                 { type: 'static', mass: 0 }
             );
 
-            // 设置物理体位置
+            // 设置物理体位置（考虑堆叠）
             body.setPosition({
                 x: obstacle.position.x,
-                y: center.y,
+                y: center.y + layer * cargoHeight,
                 z: obstacle.position.z
             });
-
-            // 设置物理体旋转
-            if (obstacle.rotation.y !== 0) {
-                body.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), obstacle.rotation.y);
-            }
         }
     }
 
