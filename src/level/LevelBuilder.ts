@@ -695,12 +695,13 @@ export class LevelBuilder {
                     let holeMinX = 0, holeMaxX = 0, holeMinY = 0, holeMaxY = 0;
 
                     if (useWindow) {
-                        // Define Window Hole (Forbidden Zone) 
-                        // Using ABSOLUTE DIMENSIONS from measurements
-                        holeMinX = centerX - 1.48;
-                        holeMaxX = centerX + 1.48;
-                        holeMinY = bottomY + 1.49;
-                        holeMaxY = bottomY + 3.00;
+                        // Define Window Hole (Forbidden Zone)
+                        // Measured dimensions: 2.970 wide x 1.498 high
+                        // Window offset: 1.48 from sides, 1.48 from bottom
+                        holeMinX = centerX - 1.485;   // Half of 2.970 width
+                        holeMaxX = centerX + 1.485;
+                        holeMinY = bottomY + 1.48;    // 1.498 - 0.018 = 1.48
+                        holeMaxY = bottomY + 2.978;   // 1.48 + 1.498 = 2.978
                     }
 
                     // Placement logic
