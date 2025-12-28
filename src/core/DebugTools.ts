@@ -23,10 +23,22 @@ export enum ObjectType {
     GENERIC = 'generic'
 }
 
+export interface PlayerViewInfo {
+    position: THREE.Vector3;      // 玩家位置
+    rotation: THREE.Euler;         // 玩家朝向
+    yaw: number;                   // 水平旋转角度
+    pitch: number;                 // 垂直旋转角度
+    distanceToPoint: number;       // 到标记点的距离
+    directionToTarget: THREE.Vector3; // 到目标的方向
+    horizontalAngle: number;       // 水平角度偏移
+    verticalAngle: number;         // 垂直角度偏移
+}
+
 export interface DebugPoint {
     position: THREE.Vector3;
     marker: THREE.Mesh;
     timestamp: number;
+    playerView: PlayerViewInfo;    // 玩家视角信息
 }
 
 export interface DistanceMeasurement {
@@ -147,32 +159,95 @@ export class DebugTools {
         const hit = intersects[0];
         const point = hit.point.clone();
 
+        // 捕获玩家视角信息
+        const playerView = this.capturePlayerViewInfo(point);
+
         switch (this.currentMode) {
             case MarkMode.POINT:
                 this.addPointMarker(point);
                 console.log(`[DebugTools] Point marked:`, point);
+                this.logPlayerView(playerView);
                 break;
 
             case MarkMode.BOUNDS:
-                this.handleBoundsMode(point);
+                this.handleBoundsMode(point, playerView);
                 break;
 
             case MarkMode.DISTANCE:
-                this.handleDistanceMode(point);
+                this.handleDistanceMode(point, playerView);
                 break;
 
             case MarkMode.PATH:
-                this.handlePathMode(point);
+                this.handlePathMode(point, playerView);
                 break;
 
             case MarkMode.AREA:
-                this.handleAreaMode(point);
+                this.handleAreaMode(point, playerView);
                 break;
 
             case MarkMode.BOX:
-                this.handleBoxMode(point);
+                this.handleBoxMode(point, playerView);
                 break;
         }
+    }
+
+    /**
+     * 捕获玩家视角信息
+     */
+    private capturePlayerViewInfo(targetPoint: THREE.Vector3): PlayerViewInfo {
+        const camera = this.camera as THREE.PerspectiveCamera;
+
+        // 玩家位置
+        const playerPos = camera.position.clone();
+
+        // 计算到目标的距离
+        const distance = playerPos.distanceTo(targetPoint);
+
+        // 计算方向向量
+        const direction = new THREE.Vector3()
+            .subVectors(targetPoint, playerPos)
+            .normalize();
+
+        // 获取相机朝向（假设是 PerspectiveCamera）
+        const yaw = Math.atan2(
+            -Math.sin(camera.rotation.y),
+            -Math.cos(camera.rotation.y)
+        );
+        const pitch = camera.rotation.x;
+
+        // 计算水平角度偏移（目标方向相对于玩家朝向的角度）
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(camera.quaternion);
+        const horizontalAngle = Math.atan2(
+            forward.cross(direction).y,
+            forward.dot(direction)
+        );
+
+        // 计算垂直角度偏移
+        const toTarget = new THREE.Vector3().subVectors(targetPoint, playerPos).normalize();
+        const verticalAngle = Math.asin(toTarget.y);
+
+        return {
+            position: playerPos,
+            rotation: camera.rotation.clone(),
+            yaw,
+            pitch,
+            distanceToPoint: distance,
+            directionToTarget: direction,
+            horizontalAngle: horizontalAngle * (180 / Math.PI), // 转换为度数
+            verticalAngle: verticalAngle * (180 / Math.PI)
+        };
+    }
+
+    /**
+     * 输出玩家视角信息
+     */
+    private logPlayerView(view: PlayerViewInfo): void {
+        console.log(`  └─ Player Position: (${view.position.x.toFixed(2)}, ${view.position.y.toFixed(2)}, ${view.position.z.toFixed(2)})`);
+        console.log(`  └─ Distance: ${view.distanceToPoint.toFixed(2)} units`);
+        console.log(`  └─ Yaw: ${(view.yaw * 180 / Math.PI).toFixed(1)}°, Pitch: ${(view.pitch * 180 / Math.PI).toFixed(1)}°`);
+        console.log(`  └─ Horizontal Offset: ${view.horizontalAngle.toFixed(1)}°`);
+        console.log(`  └─ Vertical Offset: ${view.verticalAngle.toFixed(1)}°`);
     }
 
     /**
@@ -194,14 +269,16 @@ export class DebugTools {
     /**
      * Handle BOUNDS mode (4 points for rectangular boundary)
      */
-    private handleBoundsMode(point: THREE.Vector3): void {
+    private handleBoundsMode(point: THREE.Vector3, playerView: PlayerViewInfo): void {
         this.debugPoints.push({
             position: point,
             marker: this.addPointMarker(point),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            playerView
         });
 
         console.log(`[DebugTools] Bounds point ${this.debugPoints.length}/4 marked`);
+        this.logPlayerView(playerView);
 
         if (this.debugPoints.length === 4) {
             this.calculateBounds();
@@ -213,6 +290,7 @@ export class DebugTools {
      */
     private calculateBounds(): void {
         const points = this.debugPoints.map(p => p.position);
+        const views = this.debugPoints.map(p => p.playerView);
 
         const min = new THREE.Vector3(
             Math.min(...points.map(p => p.x)),
@@ -234,6 +312,16 @@ export class DebugTools {
         console.log(`[DebugTools] Max: (${max.x.toFixed(3)}, ${max.y.toFixed(3)}, ${max.z.toFixed(3)})`);
         console.log(`[DebugTools] Size: (${size.x.toFixed(3)}, ${size.y.toFixed(3)}, ${size.z.toFixed(3)})`);
         console.log(`[DebugTools] Center: (${center.x.toFixed(3)}, ${center.y.toFixed(3)}, ${center.z.toFixed(3)})`);
+
+        // 输出每个点的玩家视角信息
+        console.log(`[DebugTools] Player View Information:`);
+        views.forEach((view, i) => {
+            console.log(`  Point ${i + 1}:`);
+            console.log(`    Player Pos: (${view.position.x.toFixed(2)}, ${view.position.y.toFixed(2)}, ${view.position.z.toFixed(2)})`);
+            console.log(`    Distance: ${view.distanceToPoint.toFixed(2)} units`);
+            console.log(`    H-Angle: ${view.horizontalAngle.toFixed(1)}°, V-Angle: ${view.verticalAngle.toFixed(1)}°`);
+        });
+
         console.log('='.repeat(50));
 
         // Draw bounding box
@@ -248,19 +336,28 @@ export class DebugTools {
     /**
      * Handle DISTANCE mode (2 points)
      */
-    private handleDistanceMode(point: THREE.Vector3): void {
+    private handleDistanceMode(point: THREE.Vector3, playerView: PlayerViewInfo): void {
         this.debugPoints.push({
             position: point,
             marker: this.addPointMarker(point),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            playerView
         });
+
+        console.log(`[DebugTools] Distance point ${this.debugPoints.length}/2 marked`);
+        this.logPlayerView(playerView);
 
         if (this.debugPoints.length === 2) {
             const p1 = this.debugPoints[0].position;
             const p2 = this.debugPoints[1].position;
+            const v1 = this.debugPoints[0].playerView;
+            const v2 = this.debugPoints[1].playerView;
             const distance = p1.distanceTo(p2);
 
-            console.log(`[DebugTools] Distance: ${distance.toFixed(3)} units`);
+            console.log(`[DebugTools] === DISTANCE COMPLETE ===`);
+            console.log(`[DebugTools] Point-to-Point Distance: ${distance.toFixed(3)} units`);
+            console.log(`[DebugTools] Point 1: ${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}, ${p1.z.toFixed(2)} (dist: ${v1.distanceToPoint.toFixed(2)})`);
+            console.log(`[DebugTools] Point 2: ${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}, ${p2.z.toFixed(2)} (dist: ${v2.distanceToPoint.toFixed(2)})`);
 
             // Draw line between points
             this.drawLine(p1, p2, this.lineColor);
@@ -272,7 +369,7 @@ export class DebugTools {
     /**
      * Handle PATH mode (multiple points)
      */
-    private handlePathMode(point: THREE.Vector3): void {
+    private handlePathMode(point: THREE.Vector3, playerView: PlayerViewInfo): void {
         this.pathPoints.push(point);
         this.addPointMarker(point, 0x00ffff);
 
@@ -287,13 +384,15 @@ export class DebugTools {
             totalLength += this.pathPoints[i - 1].distanceTo(this.pathPoints[i]);
         }
 
-        console.log(`[DebugTools] Path point ${this.pathPoints.length} marked, Total length: ${totalLength.toFixed(3)}`);
+        console.log(`[DebugTools] Path point ${this.pathPoints.length} marked`);
+        this.logPlayerView(playerView);
+        console.log(`[DebugTools] Total path length: ${totalLength.toFixed(3)} units`);
     }
 
     /**
      * Handle AREA mode (polygon area calculation)
      */
-    private handleAreaMode(point: THREE.Vector3): void {
+    private handleAreaMode(point: THREE.Vector3, playerView: PlayerViewInfo): void {
         this.areaPoints.push(point);
         this.addPointMarker(point, 0xff00ff);
 
@@ -301,6 +400,9 @@ export class DebugTools {
             const prev = this.areaPoints[this.areaPoints.length - 2];
             this.drawLine(prev, point, 0xff00ff);
         }
+
+        console.log(`[DebugTools] Area point ${this.areaPoints.length} marked`);
+        this.logPlayerView(playerView);
 
         if (this.areaPoints.length >= 3) {
             const area = this.calculatePolygonArea(this.areaPoints);
@@ -311,16 +413,22 @@ export class DebugTools {
     /**
      * Handle BOX mode (2 corners: min and max)
      */
-    private handleBoxMode(point: THREE.Vector3): void {
+    private handleBoxMode(point: THREE.Vector3, playerView: PlayerViewInfo): void {
         this.debugPoints.push({
             position: point,
             marker: this.addPointMarker(point),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            playerView
         });
+
+        console.log(`[DebugTools] Box corner ${this.debugPoints.length}/2 marked`);
+        this.logPlayerView(playerView);
 
         if (this.debugPoints.length === 2) {
             const p1 = this.debugPoints[0].position;
             const p2 = this.debugPoints[1].position;
+            const v1 = this.debugPoints[0].playerView;
+            const v2 = this.debugPoints[1].playerView;
 
             const min = new THREE.Vector3(
                 Math.min(p1.x, p2.x),
@@ -332,6 +440,10 @@ export class DebugTools {
                 Math.max(p1.y, p2.y),
                 Math.max(p1.z, p2.z)
             );
+
+            console.log(`[DebugTools] === BOX COMPLETE ===`);
+            console.log(`[DebugTools] Corner 1: ${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}, ${p1.z.toFixed(2)} (dist: ${v1.distanceToPoint.toFixed(2)})`);
+            console.log(`[DebugTools] Corner 2: ${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}, ${p2.z.toFixed(2)} (dist: ${v2.distanceToPoint.toFixed(2)})`);
 
             this.drawBoundingBox(min, max);
             this.generateCodeSnippet(min, max);
