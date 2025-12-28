@@ -532,9 +532,39 @@ export class LevelBuilder {
      * Add obstacles/covers
      */
     private async addObstacles(): Promise<void> {
-        const obstacleTypes = ['env_crate', 'env_barrel'];
+        // 视线遮挡物类型 - 包含机器设备、管道、结构、平台等
+        const obstacleTypes = [
+            // 小型可移动障碍物
+            'env_crate',
+            'env_barrel',
+            // 机器设备类 - 中型遮挡
+            'env_machine_generator',
+            'env_machine_wireless',
+            'env_machine_barrel_large',
+            // 管道设施 - 中型遮挡
+            'env_pipe_straight',
+            'env_pipe_corner',
+            'env_pipe_corner_round',
+            'env_pipe_support',
+            'env_pipe_ring',
+            // 结构类 - 大型遮挡
+            'env_gate_simple',
+            'env_chimney',
+            'env_cargo_a',
+            'env_barrels',
+            // 平台类 - 可站立遮挡
+            'env_platform_large',
+            'env_platform_high',
+            'env_platform_low',
+            // 桌椅设备 - 小型遮挡
+            'env_desk_computer',
+            'env_desk_chair'
+        ];
 
-        for (let i = 0; i < this.config.obstacleCount; i++) {
+        // 增加障碍物数量以提供更多视线遮挡
+        const obstacleCount = this.config.obstacleCount * 2;
+
+        for (let i = 0; i < obstacleCount; i++) {
             const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
             const model = await this.getModel(type);
 
@@ -546,9 +576,18 @@ export class LevelBuilder {
                 obstacle.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(obstacle);
                 const modelHeight = box.max.y - box.min.y;
+                const modelWidth = box.max.x - box.min.x;
 
-                // 如果模型太小，放大 2-3 倍
-                const scaleFactor = modelHeight < 1 ? 2 + Math.random() : 1;
+                // 根据模型类型决定是否缩放
+                let scaleFactor = 1;
+                if (modelHeight < 1) {
+                    // 小模型放大 2-3 倍
+                    scaleFactor = 2 + Math.random();
+                } else if (type.includes('platform') || type.includes('gate') || type.includes('chimney')) {
+                    // 大型结构保持原尺寸或稍微放大
+                    scaleFactor = 1 + Math.random() * 0.5;
+                }
+
                 obstacle.scale.setScalar(scaleFactor);
 
                 // 更新矩阵并重新获取边界
@@ -557,7 +596,9 @@ export class LevelBuilder {
 
                 // 设置位置：Y 调整使模型底部贴合地面
                 obstacle.position.set(pos.x, -scaledBox.min.y, pos.z);
-                obstacle.rotation.y = Math.random() * Math.PI * 2;
+
+                // 随机旋转
+                obstacle.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
 
                 this.scene.add(obstacle);
             }
