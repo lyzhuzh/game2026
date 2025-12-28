@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -69,6 +70,9 @@ export class LevelBuilder {
 
         // Add platforms
         await this.addPlatforms();
+
+        // Add area dividers
+        await this.addAreaDividers();
 
         // Add obstacles/cover
         await this.addObstacles();
@@ -496,6 +500,92 @@ export class LevelBuilder {
     }
 
     /**
+     * Add area dividers - 创建区域分隔墙
+     * 将场地分成4个区域，中间留有通道
+     */
+    private async addAreaDividers(): Promise<void> {
+        // 使用集装箱作为分隔墙
+        const cargoModel = await this.getModel('env_cargo_a');
+        if (!cargoModel) return;
+
+        // 十字形分隔方案
+        // 东西向分隔墙（Z = -20），中间留出8单位宽的通道
+        const dividerZ = -20;
+        const channelWidth = 8;
+
+        // 东西向墙 - 北半部分
+        for (let x = -45; x <= -channelWidth / 2; x += 5) {
+            await this.spawnDividerObstacle(cargoModel, x, dividerZ);
+        }
+        // 东西向墙 - 南半部分
+        for (let x = channelWidth / 2; x <= 45; x += 5) {
+            await this.spawnDividerObstacle(cargoModel, x, dividerZ);
+        }
+
+        // 南北向分隔墙（X = 0），中间留出8单位宽的通道
+        const dividerX = 0;
+
+        // 南北向墙 - 西半部分
+        for (let z = -45; z <= -channelWidth / 2; z += 5) {
+            await this.spawnDividerObstacle(cargoModel, dividerX - 5, z);
+        }
+        // 南北向墙 - 东半部分
+        for (let z = channelWidth / 2; z <= 45; z += 5) {
+            await this.spawnDividerObstacle(cargoModel, dividerX - 5, z);
+        }
+    }
+
+    /**
+     * 生成单个分隔障碍物并添加物理碰撞
+     */
+    private async spawnDividerObstacle(model: THREE.Group, x: number, z: number): Promise<void> {
+        const obstacle = this.deepCloneGltf(model);
+
+        // 缩放集装箱
+        const scaleFactor = 1.2;
+        obstacle.scale.setScalar(scaleFactor);
+        obstacle.updateMatrixWorld(true);
+
+        // 获取边界并设置位置
+        const box = new THREE.Box3().setFromObject(obstacle);
+        obstacle.position.set(x, -box.min.y, z);
+        obstacle.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
+
+        // 添加到场景
+        this.scene.add(obstacle);
+
+        // 添加物理碰撞体
+        if (this.physics) {
+            const size = new THREE.Vector3();
+            box.getSize(size);
+
+            // 调整尺寸（考虑缩放）
+            size.multiplyScalar(scaleFactor);
+
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+
+            const body = PhysicsBodyFactory.createBox(
+                this.physics,
+                { x: size.x, y: size.y, z: size.z },
+                { type: 'static', mass: 0 }
+            );
+
+            // 设置物理体位置
+            body.setPosition({
+                x: obstacle.position.x,
+                y: center.y,
+                z: obstacle.position.z
+            });
+
+            // 设置物理体旋转
+            if (obstacle.rotation.y !== 0) {
+                body.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), obstacle.rotation.y);
+            }
+        }
+    }
+
+    /**
      * Add platforms
      */
     private async addPlatforms(): Promise<void> {
@@ -577,29 +667,29 @@ export class LevelBuilder {
                 const obstacle = this.deepCloneGltf(model);
                 const pos = this.getRandomPosition(8); // Keep away from center spawn
 
-                // 获取模型尺寸并调整缩放
+                // 先应用缩放
                 obstacle.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(obstacle);
                 const modelHeight = box.max.y - box.min.y;
-                const modelWidth = box.max.x - box.min.x;
 
                 // 根据模型类型决定是否缩放
                 let scaleFactor = 1;
                 if (modelHeight < 1) {
                     // 小模型放大 2-3 倍
                     scaleFactor = 2 + Math.random();
-                } else if (type.includes('platform') || type.includes('gate') || type.includes('chimney')) {
+                } else if (type.includes('platform') || type.includes('gate') || type.includes('chimney') || type.includes('cargo')) {
                     // 大型结构保持原尺寸或稍微放大
                     scaleFactor = 1 + Math.random() * 0.5;
                 }
 
                 obstacle.scale.setScalar(scaleFactor);
 
-                // 更新矩阵并重新获取边界
+                // 更新矩阵并获取最终边界
                 obstacle.updateMatrixWorld(true);
                 const scaledBox = new THREE.Box3().setFromObject(obstacle);
 
-                // 设置位置：Y 调整使模型底部贴合地面
+                // 设置位置：Y 设为 0 使模型底部贴合地面
+                // scaledBox.min.y 是模型底部的相对位置，需要减去它让模型底部在 Y=0
                 obstacle.position.set(pos.x, -scaledBox.min.y, pos.z);
 
                 // 随机旋转
@@ -607,16 +697,19 @@ export class LevelBuilder {
 
                 this.scene.add(obstacle);
 
-                // 为集装箱添加红色边界框
+                // 为集装箱添加红色边界框（调试用）
                 if (type === 'env_cargo_a') {
-                    const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(
-                        scaledBox.max.x - scaledBox.min.x,
-                        scaledBox.max.y - scaledBox.min.y,
-                        scaledBox.max.z - scaledBox.min.z
-                    ));
-                    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+                    // 创建与集装箱尺寸匹配的边界框
+                    const bbox = new THREE.Box3().setFromObject(obstacle);
+                    const size = new THREE.Vector3();
+                    bbox.getSize(size);
+                    const center = new THREE.Vector3();
+                    bbox.getCenter(center);
+
+                    const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
+                    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
                     const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-                    edges.position.copy(obstacle.position);
+                    edges.position.copy(center);
                     edges.rotation.copy(obstacle.rotation);
                     this.scene.add(edges);
                 }
