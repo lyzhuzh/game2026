@@ -830,69 +830,6 @@ export class LevelBuilder {
 
                     this.scene.add(decal);
                 }
-
-                // 为走廊内部添加涂鸦（左右两侧墙壁）
-                const innerDecalCount = 3; // 每面墙3个涂鸦
-                const innerWallHeight = box.max.y - box.min.y;
-                const innerWallDepth = box.max.z - box.min.z;
-
-                // 左墙（西侧）- 面向 +X 方向
-                for (let d = 0; d < innerDecalCount; d++) {
-                    const randomColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-                    const decalTexture = this.createGraffitiTexture(randomColor);
-                    const size = 2 + Math.random() * 2; // Size 2-4
-
-                    const decalMat = new THREE.MeshBasicMaterial({
-                        map: decalTexture,
-                        transparent: true,
-                        side: THREE.FrontSide,
-                        depthWrite: true,
-                        depthTest: true
-                    });
-
-                    const decal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), decalMat);
-
-                    // 位置：左墙表面
-                    decal.position.set(
-                        box.min.x + 0.02, // 稍微偏移避免 z-fighting
-                        box.min.y + size / 2 + Math.random() * (innerWallHeight - size),
-                        box.min.z + Math.random() * innerWallDepth
-                    );
-
-                    // 面向 +X 方向
-                    decal.rotation.set(0, Math.PI / 2, 0);
-
-                    this.scene.add(decal);
-                }
-
-                // 右墙（东侧）- 面向 -X 方向
-                for (let d = 0; d < innerDecalCount; d++) {
-                    const randomColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-                    const decalTexture = this.createGraffitiTexture(randomColor);
-                    const size = 2 + Math.random() * 2; // Size 2-4
-
-                    const decalMat = new THREE.MeshBasicMaterial({
-                        map: decalTexture,
-                        transparent: true,
-                        side: THREE.FrontSide,
-                        depthWrite: true,
-                        depthTest: true
-                    });
-
-                    const decal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), decalMat);
-
-                    // 位置：右墙表面
-                    decal.position.set(
-                        box.max.x - 0.02, // 稍微偏移避免 z-fighting
-                        box.min.y + size / 2 + Math.random() * (innerWallHeight - size),
-                        box.min.z + Math.random() * innerWallDepth
-                    );
-
-                    // 面向 -X 方向
-                    decal.rotation.set(0, -Math.PI / 2, 0);
-
-                    this.scene.add(decal);
-                }
             }
         }
     }
