@@ -571,6 +571,20 @@ export class LevelBuilder {
         // 添加到场景
         this.scene.add(obstacle);
 
+        // 为集装箱添加红色边界框（调试用）
+        const bbox = new THREE.Box3().setFromObject(obstacle);
+        const size = new THREE.Vector3();
+        bbox.getSize(size);
+        const center = new THREE.Vector3();
+        bbox.getCenter(center);
+
+        const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
+        const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
+        const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+        edges.position.copy(center);
+        edges.rotation.copy(obstacle.rotation);
+        this.scene.add(edges);
+
         // 添加物理碰撞体
         if (this.physics) {
             const size = new THREE.Vector3();
