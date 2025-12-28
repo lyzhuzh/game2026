@@ -74,13 +74,13 @@ export const GAME_ASSETS: AssetConfig[] = [
     {
         id: 'enemy_heavy',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/koleda_belobog_zzz.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/corin_wickes.glb`,
         preload: true
     },
     {
         id: 'enemy_sniper',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/enemies/soldier_by_ghost73.glb`,
+        url: `${ASSETS_BASE_PATH}/enemies/corin_wickes.glb`,
         preload: false
     },
 
