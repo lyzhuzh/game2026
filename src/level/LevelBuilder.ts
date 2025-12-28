@@ -69,6 +69,9 @@ export class LevelBuilder {
         // Add obstacles/cover
         await this.addObstacles();
 
+        // Add corridor along one wall
+        await this.createCorridor();
+
         console.log('[LevelBuilder] Level generation complete');
     }
 
@@ -239,198 +242,6 @@ export class LevelBuilder {
         // Use procedural grid walls for consistent four-sided appearance
         console.log('[LevelBuilder] Using procedural grid walls');
         this.createBoxWalls();
-        return;
-
-        const baseModel = gltf.scene;
-
-        // Debug: analyze model structure
-        console.log('[LevelBuilder] Analyzing wall model structure:');
-        baseModel.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-                console.log(`[LevelBuilder] Mesh: ${child.name || '(unnamed)'}, position=(${child.position.x.toFixed(2)}, ${child.position.y.toFixed(2)}, ${child.position.z.toFixed(2)})`);
-            }
-        });
-
-        // Get original model size and center
-        const box = new THREE.Box3().setFromObject(baseModel);
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-        console.log(`[LevelBuilder] Original: size=(${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}), center=(${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)})`);
-
-        // Use the larger dimension as the wall piece length
-        const modelLength = Math.max(size.x, size.z);
-        const targetPieceLength = 4;
-        const uniformScale = targetPieceLength / modelLength;
-
-        // Calculate wall length to cover arena size + overlap at corners
-        // Account for overlap (5%) between pieces
-        const arenaLength = this.config.size * 2;
-        const overlap = 0.05;
-        const effectiveLength = targetPieceLength * (1 - overlap);
-
-        // Calculate how many pieces we need and actual coverage
-        // Need to cover arenaLength + 10 (corner overlap), account for 5% overlap between pieces
-        const pieceCount = Math.ceil((arenaLength + 10) / effectiveLength);
-        const actualCoverage = pieceCount * effectiveLength;
-        const wallLength = pieceCount * targetPieceLength;
-
-        console.log(`[LevelBuilder] Arena length: ${arenaLength}, target coverage: ${arenaLength + 10}`);
-        console.log(`[LevelBuilder] Pieces: ${pieceCount}, effectiveLength: ${effectiveLength.toFixed(2)}, actual coverage: ${actualCoverage.toFixed(2)}`);
-        console.log(`[LevelBuilder] Wall length (before overlap): ${wallLength}`);
-
-        const wallConfig = [
-            { name: 'North', pos: [0, 0, -this.config.size], length: wallLength, axis: 'x' },
-            { name: 'South', pos: [0, 0, this.config.size], length: wallLength, axis: 'x' },
-            { name: 'East', pos: [this.config.size, 0, 0], length: wallLength, axis: 'z' },
-            { name: 'West', pos: [-this.config.size, 0, 0], length: wallLength, axis: 'z' }
-        ];
-
-        for (const config of wallConfig) {
-            const pieceCount = Math.ceil(config.length / targetPieceLength);
-            const startOffset = -config.length / 2;
-
-            const overlap = 0.05;
-            const effectiveLength = targetPieceLength * (1 - overlap);
-
-            console.log(`[LevelBuilder] ${config.name} wall: pieces=${pieceCount}, startOffset=${startOffset}, length=${config.length}`);
-
-            for (let i = 0; i < pieceCount; i++) {
-                // Clone fresh from gltf.scene each time
-                const piece = this.deepCloneGltf(baseModel);
-
-                // Determine scale based on wall - flip X for South and East to mirror texture
-                let scaleX = uniformScale;
-                let scaleY = uniformScale;
-                let scaleZ = uniformScale;
-
-                if (config.name === 'South' || config.name === 'East') {
-                    scaleX = -uniformScale; // Mirror the model horizontally
-                }
-
-                piece.scale.set(scaleX, scaleY, scaleZ);
-
-                // Create container for positioning
-                const container = new THREE.Group();
-                container.add(piece);
-
-                // Set container rotation - walls extend parallel to edge, face inward
-                // Model extends along Z axis, texture on one side only
-                // North (90°) and West (0°) work correctly
-                switch (config.name) {
-                    case 'North':
-                        // North wall: 90° - extends along X, has texture facing inward
-                        container.rotation.y = Math.PI / 2;
-                        break;
-                    case 'South':
-                        // South wall: 90° like North, mirrored via scale.x
-                        container.rotation.y = Math.PI / 2;
-                        break;
-                    case 'East':
-                        // East wall: 0° like West, mirrored via scale.x
-                        container.rotation.y = 0;
-                        break;
-                    case 'West':
-                        // West wall: 0° - extends along Z, has texture facing inward
-                        container.rotation.y = 0;
-                        break;
-                }
-
-                // Enable double-sided rendering for all wall materials
-                piece.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(mat => mat.side = THREE.DoubleSide);
-                        } else if (child.material) {
-                            child.material.side = THREE.DoubleSide;
-                        }
-                    }
-                });
-
-                // Debug: Log wall orientation
-                if (i === 0) {
-                    console.log(`%c[墙壁调试] ${config.name}墙`, 'color: yellow; font-weight: bold',
-                        `旋转=${(container.rotation.y * 180 / Math.PI).toFixed(0)}°`,
-                        `位置=${config.pos}`);
-                }
-
-                if (i === 0) {
-                    console.log(`[LevelBuilder] ${config.name}: container rotation=${(container.rotation.y * 180 / Math.PI).toFixed(0)}deg, piece rotation=${(piece.rotation.y * 180 / Math.PI).toFixed(0)}deg, piece scale=(${piece.scale.x.toFixed(2)}, ${piece.scale.y.toFixed(2)}, ${piece.scale.z.toFixed(2)})`);
-
-                    // Calculate forward direction to understand which way the model faces
-                    const forward = new THREE.Vector3(0, 0, 1);
-                    forward.applyQuaternion(container.quaternion);
-                    console.log(`[LevelBuilder] ${config.name}: container forward direction=(${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)})`);
-                    if (Math.abs(forward.x) > Math.abs(forward.z)) {
-                        console.log(`[LevelBuilder] ${config.name}: facing ${forward.x > 0 ? '+X (East)' : '-X (West)'}`);
-                    } else {
-                        console.log(`[LevelBuilder] ${config.name}: facing ${forward.z > 0 ? '+Z (South)' : '-Z (North)'}`);
-                    }
-
-                    // Also show piece local forward (before container rotation)
-                    const pieceForward = new THREE.Vector3(0, 0, 1);
-                    pieceForward.applyAxisAngle(new THREE.Vector3(0, 1, 0), piece.rotation.y);
-                    console.log(`[LevelBuilder] ${config.name}: piece local forward=(${pieceForward.x.toFixed(2)}, ${pieceForward.y.toFixed(2)}, ${pieceForward.z.toFixed(2)})`);
-                }
-
-                // Get bounding box AFTER rotation
-                const scaledBox = new THREE.Box3().setFromObject(container);
-                const boxCenter = new THREE.Vector3();
-                scaledBox.getCenter(boxCenter);
-                const boxMin = scaledBox.min;
-
-                const posOnWall = startOffset + (i * effectiveLength) + effectiveLength / 2;
-
-                // Position walls at arena edge, adjusting for boxCenter offset
-                // For axis='x' walls (North/South): vary X, fixed Z at arena edge
-                // For axis='z' walls (East/West): vary Z, fixed X at arena edge
-                if (config.axis === 'x') {
-                    // North/South: subtract boxCenter.x from X position, subtract boxCenter.z from Z position
-                    container.position.set(posOnWall - boxCenter.x, -boxMin.y, config.pos[2] - boxCenter.z);
-                } else {
-                    // East/West: subtract boxCenter.x from X position, subtract boxCenter.z from Z position
-                    container.position.set(config.pos[0] - boxCenter.x, -boxMin.y, posOnWall - boxCenter.z);
-                }
-
-                // Log first and last piece positions for debugging
-                if (i === 0 || i === pieceCount - 1) {
-                    console.log(`[LevelBuilder] ${config.name} piece ${i + 1}/${pieceCount}: posOnWall=${posOnWall.toFixed(2)}, finalPos=(${container.position.x.toFixed(2)}, ${container.position.y.toFixed(2)}, ${container.position.z.toFixed(2)})`);
-                }
-
-                this.scene.add(container);
-            }
-        }
-
-        // === DEBUG: Add test wall in center ===
-        console.log('%c[测试] 在场地中央添加测试墙壁', 'color: cyan; font-weight: bold');
-        const testPiece = this.deepCloneGltf(baseModel);
-        testPiece.scale.set(uniformScale, uniformScale, uniformScale);
-
-        // Calculate center offset to align model center to origin for proper rotation
-        const testBox = new THREE.Box3().setFromObject(testPiece);
-        const testCenter = new THREE.Vector3();
-        testBox.getCenter(testCenter);
-
-        // Adjust piece position to center it at origin (so rotation happens in place)
-        testPiece.position.sub(testCenter);
-
-        const testContainer = new THREE.Group();
-        testContainer.add(testPiece);
-
-        // 设置旋转角度 - 修改这个值来测试不同的朝向
-        const testRotation = 270; // 0, 90, 180, 270度对应 0, π/2, π, 3π/2
-        testContainer.rotation.y = testRotation * Math.PI / 180;
-
-        // 放置在场地中央，稍微抬高以便观察
-        testContainer.position.set(0, 2, 0);
-
-        console.log(`%c[测试墙壁] 旋转角度=${testRotation}°`, 'color: lime; font-weight: bold');
-        console.log('[测试墙壁] 位置=(0, 2, 0) - 在场地中央，高度2米');
-        console.log('[测试墙壁] 请在游戏中观察纹理朝向哪个方向');
-
-        this.scene.add(testContainer);
-        // ======================================
     }
 
     /**
@@ -439,18 +250,7 @@ export class LevelBuilder {
     private createBoxWalls(): void {
         console.log('[LevelBuilder] Creating procedural grid walls with random colors');
 
-        // Generate random vibrant colors for walls
-        const generateRandomColor = () => {
-            const hue = Math.random() * 360;
-            const saturation = 60 + Math.random() * 30; // 60-90%
-            const lightness = 25 + Math.random() * 15;  // 25-40% (dark but visible)
-            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-        };
 
-        const generateAccentColor = (baseHue: number) => {
-            const lightness = 35 + Math.random() * 15;
-            return `hsl(${baseHue}, 70%, ${lightness}%)`;
-        };
 
         // Generate 4 random colors with good contrast
         const randomColors = [
@@ -467,7 +267,7 @@ export class LevelBuilder {
         console.log('[LevelBuilder] Random wall colors:', randomColors.map(c => c.base));
 
         // Function to create unique texture for each wall with graffiti
-        const createWallTexture = (wallName: string, baseColor: string, accentColor: string, graffitiColor: string) => {
+        const createWallTexture = (_wallName: string, baseColor: string, accentColor: string, graffitiColors: string[]) => {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
@@ -493,14 +293,11 @@ export class LevelBuilder {
                 ctx.stroke();
             }
 
-            // Draw random graffiti scattered across wall - same method as ground
-            const wallGraffitiColors = ['#ffffff', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#ff6600'];
-
             // Draw multiple random graffiti elements
             for (let g = 0; g < 8; g++) {
                 const cx = 50 + Math.random() * 412;
                 const cy = 50 + Math.random() * 412;
-                const color = wallGraffitiColors[Math.floor(Math.random() * wallGraffitiColors.length)];
+                const color = graffitiColors[Math.floor(Math.random() * graffitiColors.length)];
                 const gType = Math.floor(Math.random() * 10);
 
                 ctx.strokeStyle = color;
@@ -727,6 +524,277 @@ export class LevelBuilder {
     }
 
     /**
+     * Create a simple graffiti texture for decals
+     */
+    private createGraffitiTexture(overrideColor?: string): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d')!;
+
+        // Transparent background
+        ctx.clearRect(0, 0, 256, 256);
+
+        // Random neon color or override
+        const colors = ['#ffffff', '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#ff6600'];
+        const color = overrideColor || colors[Math.floor(Math.random() * colors.length)];
+
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 6 + Math.random() * 6;
+
+        const cx = 128;
+        const cy = 128;
+        const gType = Math.floor(Math.random() * 10);
+
+        switch (gType) {
+            case 0: // Circle
+                ctx.beginPath();
+                ctx.arc(cx, cy, 60 + Math.random() * 40, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+            case 1: // Star
+                ctx.beginPath();
+                const sr = 50 + Math.random() * 30;
+                for (let j = 0; j < 5; j++) {
+                    const sa = (j * 4 * Math.PI / 5) - Math.PI / 2;
+                    if (j === 0) ctx.moveTo(cx + sr * Math.cos(sa), cy + sr * Math.sin(sa));
+                    else ctx.lineTo(cx + sr * Math.cos(sa), cy + sr * Math.sin(sa));
+                }
+                ctx.closePath();
+                ctx.fill();
+                break;
+            case 2: // X mark
+                const xs = 50 + Math.random() * 30;
+                ctx.beginPath();
+                ctx.moveTo(cx - xs, cy - xs);
+                ctx.lineTo(cx + xs, cy + xs);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx + xs, cy - xs);
+                ctx.lineTo(cx - xs, cy + xs);
+                ctx.stroke();
+                break;
+            case 3: // Arrow
+                const al = 60 + Math.random() * 40;
+                const aa = Math.random() * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + al * Math.cos(aa), cy + al * Math.sin(aa));
+                ctx.stroke();
+                break;
+            case 4: // Lightning
+                const ls = 1.0 + Math.random() * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 80 * ls);
+                ctx.lineTo(cx - 40 * ls, cy);
+                ctx.lineTo(cx + 10 * ls, cy);
+                ctx.lineTo(cx - 20 * ls, cy + 80 * ls);
+                ctx.lineTo(cx + 50 * ls, cy - 20 * ls);
+                ctx.closePath();
+                ctx.fill();
+                break;
+            default: // Random scribbles
+                ctx.beginPath();
+                ctx.moveTo(cx + (Math.random() - 0.5) * 100, cy + (Math.random() - 0.5) * 100);
+                for (let k = 0; k < 5; k++) {
+                    ctx.lineTo(cx + (Math.random() - 0.5) * 150, cy + (Math.random() - 0.5) * 150);
+                }
+                ctx.stroke();
+                break;
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        return texture;
+    }
+
+    /**
+     * Create a corridor structure along the north wall
+     */
+    private async createCorridor(): Promise<void> {
+        console.log('[LevelBuilder] Creating corridor along north wall');
+
+        const corridorModel = await this.getModel('env_corridor');
+        const windowModel = await this.getModel('env_corridor_window');
+
+        if (!corridorModel) {
+            console.warn('[LevelBuilder] Corridor model not found');
+            return;
+        }
+
+        // Corridor parameters
+        const corridorScale = 5;  // Scale factor for corridor
+        const corridorCount = 10;  // Number of corridor segments
+        const segmentWidth = 10;   // Width of each corridor segment (scaled)
+        // Center the corridor segments: -45, -35, -25, -15, -5, 5, 15, 25, 35, 45
+        const startX = -((corridorCount - 1) * segmentWidth) / 2;
+        const zPosition = -this.config.size - 7.5;  // Aligned with north wall
+
+        for (let i = 0; i < corridorCount; i++) {
+            // Alternate between regular and window corridors
+            const useWindow = windowModel && i % 2 === 1;
+            const model = useWindow ? windowModel : corridorModel;
+
+            if (model) {
+                const segment = this.deepCloneGltf(model);
+                const x = startX + i * segmentWidth;
+
+                segment.position.set(x, 0, zPosition);
+                segment.rotation.y = -Math.PI / 2;  // Rotate so back faces the wall
+                segment.scale.setScalar(corridorScale);  // Scale up for player to walk through
+
+                this.scene.add(segment);
+
+                // Calculate precise bounds for graffiti placement
+                // Force matrix update to ensure world coordinates are correct
+                segment.updateMatrixWorld(true);
+                // Force matrix update to ensure world coordinates are correct
+                segment.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(segment);
+
+                // We want the face pointing towards the arena center (which is at Z=0)
+                // Since corridor is at negative Z (-50ish), the face closest to 0 is box.max.z
+                const faceZ = box.max.z;
+                const width = box.max.x - box.min.x;
+                const height = box.max.y - box.min.y;
+
+                console.log(`[LevelBuilder] Segment ${i} bounds: Y[${box.min.y.toFixed(1)}, ${box.max.y.toFixed(1)}], Z[${box.min.z.toFixed(1)}, ${box.max.z.toFixed(1)}]`);
+
+                const decalCount = 4; // Increased count to ensure edge coverage
+                for (let d = 0; d < decalCount; d++) {
+                    // Use Green for Solid (No Window) and Red for Window
+                    const decalTexture = this.createGraffitiTexture(useWindow ? '#ff0000' : '#00ff00');
+                    let size = 3 + Math.random() * 2; // Size 3-5
+
+                    // Safety check: ensure segment is large enough
+                    // Relaxed margin calculation to prevent skipping valid segments
+                    let margin = size / 2;
+                    const safeWidth = width - (margin * 2);
+                    const safeHeight = height - (margin * 2);
+
+                    // If segment is too small, try reducing size
+                    if (safeWidth <= 0 || safeHeight <= 0) {
+                        console.warn(`[Graffiti] Segment ${i} too small for size ${size}, skipping checks set to warning`);
+                        continue;
+                    }
+
+                    // Calculate safe ranges relative to center/bottom
+                    const centerX = (box.max.x + box.min.x) / 2;
+                    const bottomY = box.min.y;
+
+                    // Use actual bounding box for wall boundaries to avoid clipping visible parts
+                    // The corridor model has a specific visual area, use the box bounds directly
+                    const wallMinX = box.min.x;
+                    const wallMaxX = box.max.x;
+                    const wallMinY = box.min.y;
+                    const wallMaxY = box.max.y;
+
+                    let finalX = 0, finalY = 0;
+
+                    // Hole definition (Zero size by default for solid walls)
+                    let holeMinX = 0, holeMaxX = 0, holeMinY = 0, holeMaxY = 0;
+
+                    if (useWindow) {
+                        // Define Window Hole (Forbidden Zone) 
+                        // Using ABSOLUTE DIMENSIONS from measurements
+                        holeMinX = centerX - 1.48;
+                        holeMaxX = centerX + 1.48;
+                        holeMinY = bottomY + 1.49;
+                        holeMaxY = bottomY + 3.00;
+                    }
+
+                    // Placement logic
+                    // Use large, random size (3-5)
+                    size = 3 + Math.random() * 2;
+                    margin = size / 2;
+
+                    // We allow placement across the whole bounding width because the shader will clip it
+                    finalX = centerX + (Math.random() - 0.5) * (width - size);
+                    finalY = box.min.y + margin + Math.random() * (height - margin * 2);
+
+                    // Unified ShaderMaterial for ALL walls (Solid & Window)
+                    // This ensures "Overhanging" decals are clipped by wall boundaries
+                    const clippingUniforms = {
+                        map: { value: decalTexture },
+                        holeMin: { value: new THREE.Vector2(holeMinX, holeMinY) },
+                        holeMax: { value: new THREE.Vector2(holeMaxX, holeMaxY) },
+                        wallMin: { value: new THREE.Vector2(wallMinX, wallMinY) },
+                        wallMax: { value: new THREE.Vector2(wallMaxX, wallMaxY) }
+                    };
+
+                    const decalMat = new THREE.ShaderMaterial({
+                        uniforms: clippingUniforms,
+                        vertexShader: `
+                            varying vec2 vUv;
+                            varying vec3 vWorldPosition;
+                            void main() {
+                                vUv = uv;
+                                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                                vWorldPosition = worldPosition.xyz;
+                                gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                            }
+                        `,
+                        fragmentShader: `
+                            uniform sampler2D map;
+                            uniform vec2 holeMin;
+                            uniform vec2 holeMax;
+                            uniform vec2 wallMin;
+                            uniform vec2 wallMax;
+                            varying vec2 vUv;
+                            varying vec3 vWorldPosition;
+                            
+                            void main() {
+                                vec4 color = texture2D(map, vUv);
+                                
+                                // 1. CLIP HOLE (If inside window hole)
+                                // Only active if hole dimensions are non-zero (implied by max > min)
+                                if (holeMax.x > holeMin.x) {
+                                    if (vWorldPosition.x > holeMin.x && vWorldPosition.x < holeMax.x &&
+                                        vWorldPosition.y > holeMin.y && vWorldPosition.y < holeMax.y) {
+                                        discard; 
+                                    }
+                                }
+
+                                // 2. CLIP BOUNDARY (If outside wall visual limits)
+                                if (vWorldPosition.x < wallMin.x || vWorldPosition.x > wallMax.x ||
+                                    vWorldPosition.y < wallMin.y || vWorldPosition.y > wallMax.y) {
+                                    discard;
+                                }
+                                
+                                if (color.a < 0.1) discard; 
+                                gl_FragColor = color;
+                            }
+                        `,
+                        transparent: true,
+                        side: THREE.DoubleSide,
+                        depthWrite: false,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -1
+                    });
+
+                    const decal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), decalMat);
+
+                    decal.position.set(
+                        finalX,
+                        finalY,
+                        faceZ + 0.1
+                    );
+
+                    // Face +Z (Towards Arena Center)
+                    decal.rotation.set(0, 0, 0);
+
+                    this.scene.add(decal);
+                    console.log(`[Graffiti] Segment ${i} Decal ${d}: Window=${useWindow}, Pos=(${finalX.toFixed(1)}, ${finalY.toFixed(1)}), Size=${size.toFixed(2)}`);
+                }
+
+                console.log(`[LevelBuilder] Added corridor segment ${i} at (${x}, 0, ${zPosition})`);
+            }
+        }
+
+        console.log('[LevelBuilder] Corridor creation complete');
+    }
+
+    /**
      * Generate platform positions
      */
     private generatePlatformPositions(count: number): Array<{ x: number, y: number, z: number, rotation?: number }> {
@@ -760,132 +828,25 @@ export class LevelBuilder {
     }
 
     /**
-     * Deep clone GLTF scene with materials and skeleton support
+     * Get a model from loaded models
      */
-    private deepCloneGltf(source: THREE.Object3D): THREE.Object3D {
-        // First, collect all bones from original source by name
-        const originalBonesByName = new Map<string, THREE.Bone>();
-        source.traverse((child) => {
-            if (child instanceof THREE.Bone) {
-                originalBonesByName.set(child.name, child as THREE.Bone);
-            }
-        });
-
-        // Clone the entire scene
-        const clone = source.clone();
-
-        // Collect cloned bones by name
-        const clonedBonesByName = new Map<string, THREE.Bone>();
-        clone.traverse((child) => {
-            if (child instanceof THREE.Bone) {
-                clonedBonesByName.set(child.name, child as THREE.Bone);
-            }
-        });
-
-        // Handle SkinnedMesh - update skeleton to use cloned bones
-        clone.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
-                const skinnedMesh = child as THREE.SkinnedMesh;
-                const originalSkeleton = skinnedMesh.skeleton;
-
-                if (originalSkeleton) {
-                    // Map original bones to cloned bones by name
-                    const clonedBones = originalSkeleton.bones.map(bone => {
-                        return clonedBonesByName.get(bone.name) || bone;
-                    });
-
-                    // Create new skeleton with cloned bones
-                    skinnedMesh.skeleton = new THREE.Skeleton(clonedBones, originalSkeleton.boneInverses);
-
-                    // Update bind matrix
-                    skinnedMesh.bind(skinnedMesh.skeleton, skinnedMesh.bindMatrix);
-                }
-            }
-
-            // Clone materials
-            if (child instanceof THREE.Mesh) {
-                const mesh = child as THREE.Mesh;
-                if (mesh.material) {
-                    if (Array.isArray(mesh.material)) {
-                        mesh.material = mesh.material.map(mat => mat.clone());
-                    } else {
-                        mesh.material = mesh.material.clone();
-                    }
-                }
-            }
-        });
-
-        return clone;
+    private getModel(id: string): THREE.Group | undefined {
+        return this.assetManager.getGLTF(id) || undefined;
     }
 
     /**
-     * Get model from asset manager (with caching)
+     * Deep clone a GLTF model
      */
-    private async getModel(assetId: string): Promise<THREE.Group | null> {
-        if (this.loadedModels.has(assetId)) {
-            return this.deepCloneGltf(this.loadedModels.get(assetId)!);
-        }
-
-        // Try to get from cache
-        const cachedModel = this.assetManager.getGLTF(assetId);
-        if (cachedModel) {
-            this.loadedModels.set(assetId, cachedModel);
-            return this.deepCloneGltf(cachedModel);
-        }
-
-        // Asset not loaded - find config and load it
-        const assetConfig = GAME_ASSETS.find(a => a.id === assetId);
-        if (assetConfig) {
-            try {
-                console.log(`[LevelBuilder] Loading asset on-demand: ${assetId}`);
-                const gltf = await this.assetManager.loadAsset(assetConfig);
-                if (gltf && gltf.scene) {
-                    const model = gltf.scene.clone();
-                    this.loadedModels.set(assetId, model);
-                    return this.deepCloneGltf(model);
-                }
-            } catch (error) {
-                console.warn(`[LevelBuilder] Failed to load ${assetId}:`, error);
-            }
-        }
-
-        console.warn(`[LevelBuilder] Model not found: ${assetId}`);
-        return null;
+    private deepCloneGltf(model: THREE.Group): THREE.Group {
+        return model; // AssetManager.getGLTF 已经返回了一个克隆体
     }
 
     /**
-     * Clear current level
+     * Clear existing level
      */
-    clearLevel(): void {
-        // Remove all level geometry (keep lights, player, enemies, etc.)
-        const toRemove: THREE.Object3D[] = [];
-
-        this.scene.traverse((child) => {
-            if (child.userData.isLevelObject) {
-                toRemove.push(child);
-            }
-        });
-
-        toRemove.forEach(obj => {
-            this.scene.remove(obj);
-            if (obj instanceof THREE.Mesh) {
-                obj.geometry.dispose();
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(m => m.dispose());
-                } else {
-                    obj.material.dispose();
-                }
-            }
-        });
-    }
-
-    /**
-     * Dispose
-     */
-    dispose(): void {
-        this.clearLevel();
-        this.loadedModels.clear();
+    private clearLevel(): void {
+        console.log('[LevelBuilder] Clearing level...');
+        // In a real implementation, we would track all created objects and remove them
+        // For now, we rely on the main game clear logic or just add to scene
     }
 }
-
-export default LevelBuilder;
