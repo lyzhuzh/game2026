@@ -157,7 +157,7 @@ export class Game {
         this.weaponRenderer.showWeapon('pistol');
 
         // Initialize level builder
-        this.levelBuilder = new LevelBuilder(this.scene);
+        this.levelBuilder = new LevelBuilder(this.scene, this.physics);
 
         // Initialize debug tools
         this.debugTools = new DebugTools(this.scene, this.camera);

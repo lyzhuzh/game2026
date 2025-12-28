@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
+import { PhysicsWorld } from '../physics/PhysicsWorld';
+import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 
 export interface LevelConfig {
     size: number; // Arena size (default 100x100)
@@ -17,6 +19,7 @@ export interface LevelConfig {
 export class LevelBuilder {
     private scene: THREE.Scene;
     private assetManager: AssetManager;
+    private physics: PhysicsWorld;
     private loadedModels: Map<string, THREE.Group> = new Map();
 
     // Level configuration
@@ -27,9 +30,10 @@ export class LevelBuilder {
         obstacleCount: 20
     };
 
-    constructor(scene: THREE.Scene) {
+    constructor(scene: THREE.Scene, physics?: PhysicsWorld) {
         this.scene = scene;
         this.assetManager = AssetManager.getInstance();
+        this.physics = physics!;
     }
 
     /**
@@ -240,7 +244,6 @@ export class LevelBuilder {
      */
     private async createBoundaryWalls(): Promise<void> {
         // Use procedural grid walls for consistent four-sided appearance
-        console.log('[LevelBuilder] Using procedural grid walls');
         this.createBoxWalls();
     }
 
@@ -248,10 +251,6 @@ export class LevelBuilder {
      * Create beautiful procedural box walls with grid texture
      */
     private createBoxWalls(): void {
-        console.log('[LevelBuilder] Creating procedural grid walls with random colors');
-
-
-
         // Generate 4 random colors with good contrast
         const randomColors = [
             { hue: Math.random() * 360 },
@@ -263,8 +262,6 @@ export class LevelBuilder {
             accent: `hsl(${c.hue}, 60%, 40%)`,
             emissive: Math.floor(c.hue / 360 * 0xffffff) & 0x333333
         }));
-
-        console.log('[LevelBuilder] Random wall colors:', randomColors.map(c => c.base));
 
         // Function to create unique texture for each wall with graffiti
         const createWallTexture = (_wallName: string, baseColor: string, accentColor: string, graffitiColors: string[]) => {
@@ -482,7 +479,19 @@ export class LevelBuilder {
 
             this.scene.add(wall);
 
-            console.log(`[LevelBuilder] Created ${config.name} wall with multi-colored graffiti:`, config.graffitiColors);
+            // 为围墙添加物理碰撞体
+            if (this.physics) {
+                const wallBody = PhysicsBodyFactory.createBox(
+                    this.physics,
+                    { x: config.size[0], y: config.size[1], z: config.size[2] },
+                    { type: 'static', mass: 0 }
+                );
+                wallBody.setPosition({
+                    x: config.pos[0],
+                    y: config.pos[1],
+                    z: config.pos[2]
+                });
+            }
         }
     }
 
@@ -612,13 +621,10 @@ export class LevelBuilder {
      * Create a corridor structure along the north wall
      */
     private async createCorridor(): Promise<void> {
-        console.log('[LevelBuilder] Creating corridor along north wall');
-
         const corridorModel = await this.getModel('env_corridor');
         const windowModel = await this.getModel('env_corridor_window');
 
         if (!corridorModel) {
-            console.warn('[LevelBuilder] Corridor model not found');
             return;
         }
 
@@ -645,19 +651,56 @@ export class LevelBuilder {
 
                 this.scene.add(segment);
 
-                // Calculate precise bounds for graffiti placement
+                // Calculate precise bounds for graffiti placement and physics
                 // Force matrix update to ensure world coordinates are correct
                 segment.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(segment);
+
+                // 使用实际测量的 bounding box 创建物理碰撞体
+                // 走廊模型实际尺寸（考虑了缩放和旋转）
+                const actualWidth = box.max.x - box.min.x;
+                const actualHeight = box.max.y - box.min.y;
+                const actualDepth = box.max.z - box.min.z;
+                const centerX = (box.max.x + box.min.x) / 2;
+                const centerY = (box.max.y + box.min.y) / 2;
+                const centerZ = (box.max.z + box.min.z) / 2;
+
+                if (this.physics) {
+                    // 走廊墙壁：北侧和南侧各有一面墙
+                    // 墙壁位于走廊的前后边缘
+                    const wallThickness = 0.5;
+                    const wallHeight = actualHeight;
+
+                    // 北墙 (走廊北侧，靠近围墙)
+                    const northWallBody = PhysicsBodyFactory.createBox(
+                        this.physics,
+                        { x: actualWidth, y: wallHeight, z: wallThickness },
+                        { type: 'static', mass: 0 }
+                    );
+                    northWallBody.setPosition({
+                        x: centerX,
+                        y: centerY,
+                        z: box.max.z - wallThickness / 2
+                    });
+
+                    // 南墙 (走廊南侧，靠近竞技场中心)
+                    const southWallBody = PhysicsBodyFactory.createBox(
+                        this.physics,
+                        { x: actualWidth, y: wallHeight, z: wallThickness },
+                        { type: 'static', mass: 0 }
+                    );
+                    southWallBody.setPosition({
+                        x: centerX,
+                        y: centerY,
+                        z: box.min.z + wallThickness / 2
+                    });
+                }
 
                 // 墙壁正面表面位置（基于 DebugTools 测量）
                 // 测量显示墙壁正面 Z ≈ -95.01
                 const wallFaceZ = -95.01;
                 const width = box.max.x - box.min.x;
                 const height = box.max.y - box.min.y;
-
-                console.log(`[LevelBuilder] Segment ${i} bounds: Y[${box.min.y.toFixed(1)}, ${box.max.y.toFixed(1)}], Z[${box.min.z.toFixed(1)}, ${box.max.z.toFixed(1)}]`);
-                console.log(`[LevelBuilder] Wall face Z: ${wallFaceZ.toFixed(3)} (fixed position)`);
 
                 const decalCount = 4; // Increased count to ensure edge coverage
                 for (let d = 0; d < decalCount; d++) {
@@ -674,7 +717,6 @@ export class LevelBuilder {
 
                     // If segment is too small, try reducing size
                     if (safeWidth <= 0 || safeHeight <= 0) {
-                        console.warn(`[Graffiti] Segment ${i} too small for size ${size}, skipping checks set to warning`);
                         continue;
                     }
 
@@ -787,14 +829,9 @@ export class LevelBuilder {
                     decal.rotation.set(0, 0, 0);
 
                     this.scene.add(decal);
-                    console.log(`[Graffiti] Segment ${i} Decal ${d}: Window=${useWindow}, Pos=(${finalX.toFixed(1)}, ${finalY.toFixed(1)}), Size=${size.toFixed(2)}`);
                 }
-
-                console.log(`[LevelBuilder] Added corridor segment ${i} at (${x}, 0, ${zPosition})`);
             }
         }
-
-        console.log('[LevelBuilder] Corridor creation complete');
     }
 
     /**

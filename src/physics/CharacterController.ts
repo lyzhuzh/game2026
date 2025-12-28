@@ -125,9 +125,25 @@ export class CharacterController {
             const deltaX = moveDirection.x * speed * deltaTime;
             const deltaZ = moveDirection.z * speed * deltaTime;
 
-            // Apply to position directly (kinematic body)
-            this.body.position.x += deltaX;
-            this.body.position.z += deltaZ;
+            // 碰撞检测 - 分别检查 X 和 Z 方向
+            const newPos = this.body.position.clone();
+            const originalPos = this.body.position.clone();
+
+            // 尝试 X 方向移动
+            newPos.x += deltaX;
+            if (!this.checkCollision(newPos)) {
+                this.body.position.x = newPos.x;
+            } else {
+                // X 方向受阻，恢复原位置
+                newPos.x = originalPos.x;
+            }
+
+            // 尝试 Z 方向移动
+            newPos.z += deltaZ;
+            if (!this.checkCollision(newPos)) {
+                this.body.position.z = newPos.z;
+            }
+            // 如果 Z 方向受阻，保持原位置（不更新）
         }
 
         // Handle jumping
@@ -226,6 +242,81 @@ export class CharacterController {
         if (!this.isJumping) {
             this.isGrounded = this.body.position.y <= groundLevel + 0.1;
         }
+    }
+
+    /**
+     * Check if position collides with static bodies (walls)
+     * Uses Cannon-es intersection test
+     */
+    private checkCollision(position: CANNON.Vec3): boolean {
+        // Get all bodies from the physics world
+        const allBodies = this.world.getBodies();
+
+        // Player shape for collision testing
+        const radius = GAME_CONFIG.PLAYER.RADIUS;
+        const height = this.currentHeight;
+
+        for (const body of allBodies) {
+            // Skip self and non-static bodies
+            if (body === this.body || body.type !== CANNON.Body.STATIC) {
+                continue;
+            }
+
+            // Check if body has Box shape (walls)
+            const shape = body.shapes[0];
+            if (shape instanceof CANNON.Box) {
+                if (this.checkBoxCollision(position, body, shape as CANNON.Box, radius, height)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check collision with a box shape
+     */
+    private checkBoxCollision(
+        playerPos: CANNON.Vec3,
+        wallBody: CANNON.Body,
+        boxShape: CANNON.Box,
+        playerRadius: number,
+        playerHeight: number
+    ): boolean {
+        // Get box half extents
+        const halfExtents = boxShape.halfExtents;
+
+        // Transform player position to box local space
+        const localPlayerPos = playerPos.vsub(wallBody.position);
+        const invQuat = wallBody.quaternion.inverse();
+        invQuat.vmult(localPlayerPos, localPlayerPos);
+
+        // Check AABB collision in local space
+        // Player is treated as a cylinder (capsule)
+        // For simplicity, use box approximation for player
+        const playerHalfWidth = playerRadius;
+        const playerHalfHeight = playerHeight / 2;
+
+        // Check X axis
+        const xMin = -halfExtents.x - playerHalfWidth;
+        const xMax = halfExtents.x + playerHalfWidth;
+
+        // Check Y axis (player center is at playerHeight/2, so adjust)
+        const yMin = -halfExtents.y;
+        const yMax = halfExtents.y + playerHeight;
+
+        // Check Z axis
+        const zMin = -halfExtents.z - playerHalfWidth;
+        const zMax = halfExtents.z + playerHalfWidth;
+
+        // Check if player's bounding box overlaps with wall's bounding box
+        const overlaps =
+            localPlayerPos.x >= xMin && localPlayerPos.x <= xMax &&
+            localPlayerPos.y >= yMin && localPlayerPos.y <= yMax &&
+            localPlayerPos.z >= zMin && localPlayerPos.z <= zMax;
+
+        return overlaps;
     }
 
     /**
