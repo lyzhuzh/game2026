@@ -742,16 +742,16 @@ export class LevelBuilder {
                             uniform vec2 wallMax;
                             varying vec2 vUv;
                             varying vec3 vWorldPosition;
-                            
+
                             void main() {
                                 vec4 color = texture2D(map, vUv);
-                                
+
                                 // 1. CLIP HOLE (If inside window hole)
                                 // Only active if hole dimensions are non-zero (implied by max > min)
                                 if (holeMax.x > holeMin.x) {
                                     if (vWorldPosition.x > holeMin.x && vWorldPosition.x < holeMax.x &&
                                         vWorldPosition.y > holeMin.y && vWorldPosition.y < holeMax.y) {
-                                        discard; 
+                                        discard;
                                     }
                                 }
 
@@ -760,16 +760,15 @@ export class LevelBuilder {
                                     vWorldPosition.y < wallMin.y || vWorldPosition.y > wallMax.y) {
                                     discard;
                                 }
-                                
-                                if (color.a < 0.1) discard; 
+
+                                if (color.a < 0.1) discard;
                                 gl_FragColor = color;
                             }
                         `,
                         transparent: true,
-                        side: THREE.DoubleSide,
-                        depthWrite: false,
-                        polygonOffset: true,
-                        polygonOffsetFactor: -1
+                        side: THREE.FrontSide,
+                        depthWrite: true,
+                        depthTest: true
                     });
 
                     const decal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), decalMat);
@@ -836,9 +835,23 @@ export class LevelBuilder {
 
     /**
      * Deep clone a GLTF model
+     * Three.js Group.clone() creates a shallow copy, need deep clone for GLTF models
      */
     private deepCloneGltf(model: THREE.Group): THREE.Group {
-        return model; // AssetManager.getGLTF 已经返回了一个克隆体
+        const cloned = model.clone(true); // Recursive clone
+
+        // Clone all materials to avoid sharing
+        cloned.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                if (Array.isArray(child.material)) {
+                    child.material = child.material.map(mat => mat.clone());
+                } else {
+                    child.material = child.material.clone();
+                }
+            }
+        });
+
+        return cloned;
     }
 
     /**
