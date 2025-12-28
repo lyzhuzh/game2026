@@ -70,10 +70,14 @@ export class DebugTools {
     private labels: THREE.Sprite[] = [];
     private boundaryBoxes: THREE.LineSegments[] = [];
 
+    // Real-time preview box
+    private previewBox: THREE.LineSegments | null = null;
+
     // Configuration
     private readonly markerColor = 0xffff00;
     private readonly lineColor = 0x00ff00;
     private readonly boxColor = 0xff0000;
+    private readonly previewBoxColor = 0xffa500; // 橙色用于预览框
     private readonly markerSize = 0.2;
 
     constructor(scene: THREE.Scene, camera: THREE.Camera) {
@@ -124,6 +128,8 @@ export class DebugTools {
             if (key === 'u') this.undoLast();
             if (key === 'h') this.showHelp();
             if (key === 'p') this.printSummary();
+            if (key === 'enter') this.finishCurrentMeasurement();
+            if (key === 'escape') this.cancelCurrentMeasurement();
         });
     }
 
@@ -132,8 +138,9 @@ export class DebugTools {
      */
     setMode(mode: MarkMode): void {
         this.currentMode = mode;
-        this.clearCurrentSession();
+        // 不再自动清除，允许玩家移动后继续标记
         console.log(`[DebugTools] Mode: ${mode.toUpperCase()}`);
+        console.log(`[DebugTools] Press ENTER to finish, ESC to cancel`);
     }
 
     /**
@@ -280,9 +287,53 @@ export class DebugTools {
         console.log(`[DebugTools] Bounds point ${this.debugPoints.length}/4 marked`);
         this.logPlayerView(playerView);
 
+        // 实时更新预览框
+        this.updateBoundsPreview();
+
+        // 不再自动完成，让用户按 ENTER 完成测量
         if (this.debugPoints.length === 4) {
-            this.calculateBounds();
+            console.log(`[DebugTools] 4 points marked! Press ENTER to finish, or continue marking.`);
         }
+    }
+
+    /**
+     * 更新边界框预览
+     */
+    private updateBoundsPreview(): void {
+        // 移除旧的预览框
+        if (this.previewBox) {
+            this.scene.remove(this.previewBox);
+            this.previewBox = null;
+        }
+
+        if (this.debugPoints.length < 2) return;
+
+        // 计算当前边界
+        const points = this.debugPoints.map(p => p.position);
+        const min = new THREE.Vector3(
+            Math.min(...points.map(p => p.x)),
+            Math.min(...points.map(p => p.y)),
+            Math.min(...points.map(p => p.z))
+        );
+        const max = new THREE.Vector3(
+            Math.max(...points.map(p => p.x)),
+            Math.max(...points.map(p => p.y)),
+            Math.max(...points.map(p => p.z))
+        );
+
+        const size = new THREE.Vector3().subVectors(max, min);
+        const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+        const edges = new THREE.EdgesGeometry(geometry);
+        const material = new THREE.LineBasicMaterial({ color: this.previewBoxColor, depthTest: false });
+        const box = new THREE.LineSegments(edges, material);
+
+        box.position.copy(min).add(size.clone().multiplyScalar(0.5));
+        box.renderOrder = 996; // 比最终框低一点，避免重叠
+        this.scene.add(box);
+        this.previewBox = box;
+
+        // 输出当前边界信息
+        console.log(`[DebugTools] Current bounds: [${min.x.toFixed(2)}, ${min.y.toFixed(2)}, ${min.z.toFixed(2)}] to [${max.x.toFixed(2)}, ${max.y.toFixed(2)}, ${max.z.toFixed(2)}]`);
     }
 
     /**
@@ -324,6 +375,12 @@ export class DebugTools {
 
         console.log('='.repeat(50));
 
+        // 移除预览框
+        if (this.previewBox) {
+            this.scene.remove(this.previewBox);
+            this.previewBox = null;
+        }
+
         // Draw bounding box
         this.drawBoundingBox(min, max);
 
@@ -347,22 +404,9 @@ export class DebugTools {
         console.log(`[DebugTools] Distance point ${this.debugPoints.length}/2 marked`);
         this.logPlayerView(playerView);
 
+        // 不再自动完成，让用户按 ENTER 完成
         if (this.debugPoints.length === 2) {
-            const p1 = this.debugPoints[0].position;
-            const p2 = this.debugPoints[1].position;
-            const v1 = this.debugPoints[0].playerView;
-            const v2 = this.debugPoints[1].playerView;
-            const distance = p1.distanceTo(p2);
-
-            console.log(`[DebugTools] === DISTANCE COMPLETE ===`);
-            console.log(`[DebugTools] Point-to-Point Distance: ${distance.toFixed(3)} units`);
-            console.log(`[DebugTools] Point 1: ${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}, ${p1.z.toFixed(2)} (dist: ${v1.distanceToPoint.toFixed(2)})`);
-            console.log(`[DebugTools] Point 2: ${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}, ${p2.z.toFixed(2)} (dist: ${v2.distanceToPoint.toFixed(2)})`);
-
-            // Draw line between points
-            this.drawLine(p1, p2, this.lineColor);
-
-            this.debugPoints = [];
+            console.log(`[DebugTools] 2 points marked! Press ENTER to finish, or continue marking.`);
         }
     }
 
@@ -424,31 +468,9 @@ export class DebugTools {
         console.log(`[DebugTools] Box corner ${this.debugPoints.length}/2 marked`);
         this.logPlayerView(playerView);
 
+        // 不再自动完成，让用户按 ENTER 完成
         if (this.debugPoints.length === 2) {
-            const p1 = this.debugPoints[0].position;
-            const p2 = this.debugPoints[1].position;
-            const v1 = this.debugPoints[0].playerView;
-            const v2 = this.debugPoints[1].playerView;
-
-            const min = new THREE.Vector3(
-                Math.min(p1.x, p2.x),
-                Math.min(p1.y, p2.y),
-                Math.min(p1.z, p2.z)
-            );
-            const max = new THREE.Vector3(
-                Math.max(p1.x, p2.x),
-                Math.max(p1.y, p2.y),
-                Math.max(p1.z, p2.z)
-            );
-
-            console.log(`[DebugTools] === BOX COMPLETE ===`);
-            console.log(`[DebugTools] Corner 1: ${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}, ${p1.z.toFixed(2)} (dist: ${v1.distanceToPoint.toFixed(2)})`);
-            console.log(`[DebugTools] Corner 2: ${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}, ${p2.z.toFixed(2)} (dist: ${v2.distanceToPoint.toFixed(2)})`);
-
-            this.drawBoundingBox(min, max);
-            this.generateCodeSnippet(min, max);
-
-            this.debugPoints = [];
+            console.log(`[DebugTools] 2 corners marked! Press ENTER to finish, or continue marking.`);
         }
     }
 
@@ -515,6 +537,12 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
      * Clear current session data
      */
     private clearCurrentSession(): void {
+        // 清除预览框
+        if (this.previewBox) {
+            this.scene.remove(this.previewBox);
+            this.previewBox = null;
+        }
+
         this.debugPoints.forEach(p => this.scene.remove(p.marker));
         this.debugPoints = [];
         this.pathPoints = [];
@@ -545,6 +573,110 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
     }
 
     /**
+     * 完成当前测量并输出结果
+     */
+    finishCurrentMeasurement(): void {
+        switch (this.currentMode) {
+            case MarkMode.BOUNDS:
+                if (this.debugPoints.length >= 3) {
+                    console.log(`[DebugTools] Finishing BOUNDS measurement with ${this.debugPoints.length} points`);
+                    this.calculateBounds();
+                } else {
+                    console.warn(`[DebugTools] Need at least 3 points for bounds, have ${this.debugPoints.length}`);
+                }
+                break;
+
+            case MarkMode.DISTANCE:
+                if (this.debugPoints.length >= 2) {
+                    console.log(`[DebugTools] Finishing DISTANCE measurement with ${this.debugPoints.length} points`);
+                    let totalDistance = 0;
+                    for (let i = 1; i < this.debugPoints.length; i++) {
+                        const p1 = this.debugPoints[i - 1].position;
+                        const p2 = this.debugPoints[i].position;
+                        const dist = p1.distanceTo(p2);
+                        totalDistance += dist;
+                        // Draw line between consecutive points
+                        this.drawLine(p1, p2, this.lineColor);
+                    }
+                    console.log(`[DebugTools] === DISTANCE COMPLETE ===`);
+                    console.log(`[DebugTools] Total Distance: ${totalDistance.toFixed(3)} units`);
+                    console.log(`[DebugTools] Segments: ${this.debugPoints.length - 1}`);
+                    this.debugPoints = [];
+                } else {
+                    console.warn(`[DebugTools] Need at least 2 points for distance, have ${this.debugPoints.length}`);
+                }
+                break;
+
+            case MarkMode.PATH:
+                if (this.pathPoints.length >= 2) {
+                    console.log(`[DebugTools] Finishing PATH measurement with ${this.pathPoints.length} points`);
+                    let totalLength = 0;
+                    for (let i = 1; i < this.pathPoints.length; i++) {
+                        totalLength += this.pathPoints[i - 1].distanceTo(this.pathPoints[i]);
+                    }
+                    console.log(`[DebugTools] Total path length: ${totalLength.toFixed(3)} units`);
+                } else {
+                    console.warn(`[DebugTools] Need at least 2 points for path`);
+                }
+                break;
+
+            case MarkMode.AREA:
+                if (this.areaPoints.length >= 3) {
+                    const area = this.calculatePolygonArea(this.areaPoints);
+                    console.log(`[DebugTools] Finishing AREA measurement`);
+                    console.log(`[DebugTools] Polygon area: ${area.toFixed(3)} square units`);
+                } else {
+                    console.warn(`[DebugTools] Need at least 3 points for area`);
+                }
+                break;
+
+            case MarkMode.BOX:
+                if (this.debugPoints.length >= 2) {
+                    console.log(`[DebugTools] Finishing BOX measurement with ${this.debugPoints.length} points`);
+                    const p1 = this.debugPoints[0].position;
+                    const p2 = this.debugPoints[1].position;
+                    const v1 = this.debugPoints[0].playerView;
+                    const v2 = this.debugPoints[1].playerView;
+
+                    const min = new THREE.Vector3(
+                        Math.min(p1.x, p2.x),
+                        Math.min(p1.y, p2.y),
+                        Math.min(p1.z, p2.z)
+                    );
+                    const max = new THREE.Vector3(
+                        Math.max(p1.x, p2.x),
+                        Math.max(p1.y, p2.y),
+                        Math.max(p1.z, p2.z)
+                    );
+
+                    console.log(`[DebugTools] === BOX COMPLETE ===`);
+                    console.log(`[DebugTools] Corner 1: ${p1.x.toFixed(2)}, ${p1.y.toFixed(2)}, ${p1.z.toFixed(2)} (dist: ${v1.distanceToPoint.toFixed(2)})`);
+                    console.log(`[DebugTools] Corner 2: ${p2.x.toFixed(2)}, ${p2.y.toFixed(2)}, ${p2.z.toFixed(2)} (dist: ${v2.distanceToPoint.toFixed(2)})`);
+
+                    this.drawBoundingBox(min, max);
+                    this.generateCodeSnippet(min, max);
+
+                    this.debugPoints = [];
+                } else {
+                    console.warn(`[DebugTools] Need at least 2 points for box`);
+                }
+                break;
+
+            default:
+                console.log(`[DebugTools] Nothing to finish for ${this.currentMode} mode`);
+        }
+    }
+
+    /**
+     * 取消当前测量
+     */
+    cancelCurrentMeasurement(): void {
+        const cleared = this.debugPoints.length + this.pathPoints.length + this.areaPoints.length;
+        this.clearCurrentSession();
+        console.log(`[DebugTools] Cancelled current measurement (${cleared} points cleared)`);
+    }
+
+    /**
      * Undo last action
      */
     undoLast(): void {
@@ -556,8 +688,11 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
         const lastMarker = this.markers.pop();
         if (lastMarker) this.scene.remove(lastMarker);
 
+        let needsUpdate = false;
+
         if (this.debugPoints.length > 0) {
             this.debugPoints.pop();
+            needsUpdate = this.currentMode === MarkMode.BOUNDS || this.currentMode === MarkMode.BOX;
         } else if (this.pathPoints.length > 0) {
             this.pathPoints.pop();
             // Remove last line
@@ -567,6 +702,11 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
             this.areaPoints.pop();
             const lastLine = this.lines.pop();
             if (lastLine) this.scene.remove(lastLine);
+        }
+
+        // 更新预览框（如果是 BOUNDS 或 BOX 模式）
+        if (needsUpdate && (this.currentMode === MarkMode.BOUNDS)) {
+            this.updateBoundsPreview();
         }
 
         console.log('[DebugTools] Undo');
@@ -609,10 +749,14 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
         console.log('[DebugTools]');
         console.log('[DebugTools] ACTIONS:');
         console.log('[DebugTools]   M - Mark point at crosshair');
+        console.log('[DebugTools]   ENTER - Finish current measurement');
+        console.log('[DebugTools]   ESC - Cancel current measurement');
         console.log('[DebugTools]   C - Clear all markers');
         console.log('[DebugTools]   U - Undo last point');
         console.log('[DebugTools]   H - Show this help');
         console.log('[DebugTools]   P - Print summary');
+        console.log('[DebugTools]');
+        console.log('[DebugTools] TIP: You can move between marks! Press ENTER when done.');
         console.log('='.repeat(50));
     }
 

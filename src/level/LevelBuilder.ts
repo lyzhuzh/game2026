@@ -651,19 +651,19 @@ export class LevelBuilder {
                 const box = new THREE.Box3().setFromObject(segment);
 
                 // 墙壁正面表面位置（基于 DebugTools 测量）
-                // 测量显示墙壁正面 Z ≈ -95.11，box.max.z (-94.9) 不是准确表面
-                // 使用 box.max.z - 0.21 来校正到实际墙壁表面
-                const wallFaceZ = box.max.z - 0.21;
+                // 测量显示墙壁正面 Z ≈ -95.01
+                const wallFaceZ = -95.01;
                 const width = box.max.x - box.min.x;
                 const height = box.max.y - box.min.y;
 
                 console.log(`[LevelBuilder] Segment ${i} bounds: Y[${box.min.y.toFixed(1)}, ${box.max.y.toFixed(1)}], Z[${box.min.z.toFixed(1)}, ${box.max.z.toFixed(1)}]`);
-                console.log(`[LevelBuilder] Wall face Z: ${wallFaceZ.toFixed(3)} (corrected from box.max.z: ${box.max.z.toFixed(3)})`);
+                console.log(`[LevelBuilder] Wall face Z: ${wallFaceZ.toFixed(3)} (fixed position)`);
 
                 const decalCount = 4; // Increased count to ensure edge coverage
                 for (let d = 0; d < decalCount; d++) {
-                    // Use Green for Solid (No Window) and Red for Window
-                    const decalTexture = this.createGraffitiTexture(useWindow ? '#ff0000' : '#00ff00');
+                    // 随机涂鸦颜色
+                    const randomColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+                    const decalTexture = this.createGraffitiTexture(randomColor);
                     let size = 3 + Math.random() * 2; // Size 3-5
 
                     // Safety check: ensure segment is large enough
@@ -682,12 +682,14 @@ export class LevelBuilder {
                     const centerX = (box.max.x + box.min.x) / 2;
                     const bottomY = box.min.y;
 
-                    // Use actual bounding box for wall boundaries to avoid clipping visible parts
-                    // The corridor model has a specific visual area, use the box bounds directly
-                    const wallMinX = box.min.x;
-                    const wallMaxX = box.max.x;
-                    const wallMinY = box.min.y;
-                    const wallMaxY = box.max.y;
+                    // 使用实际测量的墙壁正面边界
+                    // 基于测量: X范围约 -5 到 0, Y范围约 0 到 4.01
+                    // 每个走廊段中心不同，需要相对计算
+                    const wallHalfWidth = 2.5;  // 墙壁半宽（约5米宽）
+                    const wallMinX = centerX - wallHalfWidth;
+                    const wallMaxX = centerX + wallHalfWidth;
+                    const wallMinY = bottomY;
+                    const wallMaxY = bottomY + 4.01;  // 墙壁高度约4米
 
                     let finalX = 0, finalY = 0;
 
@@ -696,12 +698,12 @@ export class LevelBuilder {
 
                     if (useWindow) {
                         // Define Window Hole (Forbidden Zone)
-                        // Measured dimensions: 2.970 wide x 1.498 high
-                        // Window offset: 1.48 from sides, 1.48 from bottom
-                        holeMinX = centerX - 1.485;   // Half of 2.970 width
-                        holeMaxX = centerX + 1.485;
-                        holeMinY = bottomY + 1.48;    // 1.498 - 0.018 = 1.48
-                        holeMaxY = bottomY + 2.978;   // 1.48 + 1.498 = 2.978
+                        // 最新测量: 3.015 wide x 1.519 high
+                        // Window offset: 1.5075 from center, 1.501 from bottom
+                        holeMinX = centerX - 1.5075;  // Half of 3.015 width
+                        holeMaxX = centerX + 1.5075;
+                        holeMinY = bottomY + 1.501;   // Bottom offset
+                        holeMaxY = bottomY + 3.020;   // 1.501 + 1.519 = 3.020
                     }
 
                     // Placement logic

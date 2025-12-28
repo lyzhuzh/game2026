@@ -164,7 +164,7 @@ export class Enemy {
     private async loadModel(): Promise<void> {
         // Find asset config for this enemy type
         const assetConfig = GAME_ASSETS.find(a => a.id === `enemy_${this.type}`) ||
-                           GAME_ASSETS.find(a => a.id === 'enemy_soldier');
+            GAME_ASSETS.find(a => a.id === 'enemy_soldier');
 
         if (!assetConfig) {
             console.warn(`[Enemy] No asset config found for ${this.type}`);
@@ -268,7 +268,7 @@ export class Enemy {
             // Store animations by name for easy access
             for (const clip of animations) {
                 this.animations.set(clip.name, clip);
-                console.log(`[Enemy] Found animation: "${clip.name}" (duration: ${clip.duration.toFixed(2)}s)`);
+                // console.log(`[Enemy] Found animation: "${clip.name}" (duration: ${clip.duration.toFixed(2)}s)`);
             }
 
             console.log(`[Enemy] Loaded ${animations.length} animations: ${animations.map(a => a.name).join(', ')}`);
@@ -344,7 +344,7 @@ export class Enemy {
     /**
      * Get model bounding box for debugging
      */
-    private getBoundingBox(model: THREE.Object3D): {size: THREE.Vector3, center: THREE.Vector3} {
+    private getBoundingBox(model: THREE.Object3D): { size: THREE.Vector3, center: THREE.Vector3 } {
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         const center = new THREE.Vector3();
@@ -580,7 +580,7 @@ export class Enemy {
                 // Detect player
                 if (distance < this.stats.detectionRange) {
                     this.state = 'chase';
-                    console.log(`[Enemy] ${this.type} detected player at distance ${distance.toFixed(1)}`);
+                    // console.log(`[Enemy] ${this.type} detected player at distance ${distance.toFixed(1)}`);
                 }
                 break;
 
@@ -588,7 +588,7 @@ export class Enemy {
                 // Check if in attack range
                 if (distance < this.stats.attackRange) {
                     this.state = 'attack';
-                    console.log(`[Enemy] ${this.type} entering attack state, distance: ${distance.toFixed(1)}`);
+                    // console.log(`[Enemy] ${this.type} entering attack state, distance: ${distance.toFixed(1)}`);
                 }
                 // Lose sight of player
                 else if (distance > this.stats.loseSightRange) {
@@ -600,7 +600,7 @@ export class Enemy {
                 // Player out of range
                 if (distance > this.stats.attackRange * 1.5) {
                     this.state = 'chase';
-                    console.log(`[Enemy] ${this.type} leaving attack state, distance: ${distance.toFixed(1)}`);
+                    // console.log(`[Enemy] ${this.type} leaving attack state, distance: ${distance.toFixed(1)}`);
                 }
                 break;
         }
@@ -694,7 +694,7 @@ export class Enemy {
         // Check if can attack
         const time = performance.now() / 1000;
         if (time - this.lastAttackTime >= this.stats.attackCooldown) {
-            console.log(`[Enemy] ${this.type} attacking player for ${this.stats.damage} damage`);
+            // console.log(`[Enemy] ${this.type} attacking player for ${this.stats.damage} damage`);
             this.attack(playerPosition);
             this.lastAttackTime = time;
         }

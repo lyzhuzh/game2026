@@ -177,7 +177,7 @@ export class EnemyManager {
             this.spawnEnemy({ type: enemyType, position });
         }
 
-        console.log(`[EnemyManager] Wave ${waveNumber} started with ${enemyCount} enemies`);
+        // console.log(`[EnemyManager] Wave ${waveNumber} started with ${enemyCount} enemies`);
     }
 
     /**
@@ -203,7 +203,7 @@ export class EnemyManager {
 
         if (livingEnemies === 0 && this.enemiesRemaining === 0) {
             this.waveInProgress = false;
-            console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
+            // console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
 
             // Auto-start next wave after delay
             setTimeout(() => {

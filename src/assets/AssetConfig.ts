@@ -115,6 +115,24 @@ export const GAME_ASSETS: AssetConfig[] = [
         url: `${ASSETS_BASE_PATH}/environment/barrel.glb`,
         preload: true
     },
+    {
+        id: 'env_corridor',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/environment/corridor.glb`,
+        preload: true
+    },
+    {
+        id: 'env_corridor_window',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/environment/corridor_window.glb`,
+        preload: true
+    },
+    {
+        id: 'env_corridor_corner',
+        type: 'glb',
+        url: `${ASSETS_BASE_PATH}/environment/corridor_corner.glb`,
+        preload: true
+    },
 
     // ============ TEXTURES ============
     {
