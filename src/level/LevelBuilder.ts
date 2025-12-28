@@ -505,8 +505,24 @@ export class LevelBuilder {
             const model = await this.getModel('env_platform');
             if (model) {
                 const platform = this.deepCloneGltf(model);
+
+                // 获取模型实际尺寸并调整缩放
+                const tempBox = new THREE.Box3().setFromObject(platform);
+                const modelHeight = tempBox.max.y - tempBox.min.y;
+
+                // 如果模型太小，放大 3 倍
+                const scaleFactor = modelHeight < 1 ? 3 : 1;
+                platform.scale.setScalar(scaleFactor);
+
+                // 更新位置和旋转
                 platform.position.set(pos.x, pos.y, pos.z);
                 platform.rotation.y = pos.rotation || 0;
+                platform.updateMatrixWorld(true);
+
+                // 根据缩放后的模型调整 Y 位置，使其底部贴合地面
+                const scaledBox = new THREE.Box3().setFromObject(platform);
+                platform.position.y = pos.y - scaledBox.min.y;
+
                 this.scene.add(platform);
             }
         }
@@ -525,8 +541,24 @@ export class LevelBuilder {
             if (model) {
                 const obstacle = this.deepCloneGltf(model);
                 const pos = this.getRandomPosition(8); // Keep away from center spawn
-                obstacle.position.set(pos.x, 0, pos.z); // Y=0 to sit on ground
+
+                // 获取模型尺寸并调整缩放
+                obstacle.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(obstacle);
+                const modelHeight = box.max.y - box.min.y;
+
+                // 如果模型太小，放大 2-3 倍
+                const scaleFactor = modelHeight < 1 ? 2 + Math.random() : 1;
+                obstacle.scale.setScalar(scaleFactor);
+
+                // 更新矩阵并重新获取边界
+                obstacle.updateMatrixWorld(true);
+                const scaledBox = new THREE.Box3().setFromObject(obstacle);
+
+                // 设置位置：Y 调整使模型底部贴合地面
+                obstacle.position.set(pos.x, -scaledBox.min.y, pos.z);
                 obstacle.rotation.y = Math.random() * Math.PI * 2;
+
                 this.scene.add(obstacle);
             }
         }
