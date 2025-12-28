@@ -648,17 +648,17 @@ export class LevelBuilder {
                 // Calculate precise bounds for graffiti placement
                 // Force matrix update to ensure world coordinates are correct
                 segment.updateMatrixWorld(true);
-                // Force matrix update to ensure world coordinates are correct
-                segment.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(segment);
 
-                // We want the face pointing towards the arena center (which is at Z=0)
-                // Since corridor is at negative Z (-50ish), the face closest to 0 is box.max.z
-                const faceZ = box.max.z;
+                // 墙壁正面表面位置（基于 DebugTools 测量）
+                // 测量显示墙壁正面 Z ≈ -95.11，box.max.z (-94.9) 不是准确表面
+                // 使用 box.max.z - 0.21 来校正到实际墙壁表面
+                const wallFaceZ = box.max.z - 0.21;
                 const width = box.max.x - box.min.x;
                 const height = box.max.y - box.min.y;
 
                 console.log(`[LevelBuilder] Segment ${i} bounds: Y[${box.min.y.toFixed(1)}, ${box.max.y.toFixed(1)}], Z[${box.min.z.toFixed(1)}, ${box.max.z.toFixed(1)}]`);
+                console.log(`[LevelBuilder] Wall face Z: ${wallFaceZ.toFixed(3)} (corrected from box.max.z: ${box.max.z.toFixed(3)})`);
 
                 const decalCount = 4; // Increased count to ensure edge coverage
                 for (let d = 0; d < decalCount; d++) {
@@ -774,10 +774,11 @@ export class LevelBuilder {
 
                     const decal = new THREE.Mesh(new THREE.PlaneGeometry(size, size), decalMat);
 
+                    // 将涂鸦紧贴墙壁表面，稍微偏移 0.02 避免 z-fighting
                     decal.position.set(
                         finalX,
                         finalY,
-                        faceZ + 0.1
+                        wallFaceZ + 0.02
                     );
 
                     // Face +Z (Towards Arena Center)
