@@ -78,8 +78,6 @@ export class Player {
         if (this.onHurtCallback) {
             this.onHurtCallback();
         }
-
-        console.log(`[Player] Took damage! Health: ${this.state.health}, Armor: ${this.state.armor}`);
     }
 
     /**
@@ -120,7 +118,6 @@ export class Player {
     private die(): void {
         this.state.isDead = true;
         this.state.health = 0;
-        console.log(`[Player] Died! Final Score: ${this.state.score}, Kills: ${this.state.kills}`);
 
         // Call death callback
         if (this.onDeathCallback) {
@@ -145,8 +142,6 @@ export class Player {
         if (this.onRespawnCallback) {
             this.onRespawnCallback();
         }
-
-        console.log('[Player] Respawned!');
     }
 
     /**

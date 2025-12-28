@@ -268,15 +268,10 @@ export class Enemy {
             // Store animations by name for easy access
             for (const clip of animations) {
                 this.animations.set(clip.name, clip);
-                // console.log(`[Enemy] Found animation: "${clip.name}" (duration: ${clip.duration.toFixed(2)}s)`);
             }
-
-            console.log(`[Enemy] Loaded ${animations.length} animations: ${animations.map(a => a.name).join(', ')}`);
 
             // Play idle animation by default if available
             this.playAnimation('idle', true);
-        } else {
-            console.log(`[Enemy] No animations found in model`);
         }
 
         // Update skeleton matrices before calculating bounding box
@@ -418,14 +413,12 @@ export class Enemy {
                     (nameLower === 'run' && (animNameLower.includes('run'))) ||
                     (nameLower === 'attack' && (animNameLower.includes('shoot') || animNameLower.includes('attack')))) {
                     clip = animClip;
-                    console.log(`[Enemy] Fuzzy matched: "${name}" -> "${animName}"`);
                     break;
                 }
             }
         }
 
         if (!clip) {
-            console.log(`[Enemy] Animation "${name}" not found`);
             return;
         }
 
@@ -443,7 +436,6 @@ export class Enemy {
         action.play();
 
         this.currentAction = action;
-        console.log(`[Enemy] Playing animation: "${name}"`);
     }
 
     /**
@@ -744,10 +736,7 @@ export class Enemy {
     private attack(playerPosition: THREE.Vector3): void {
         // Call attack callback to damage player
         if (this.onAttackCallback) {
-            console.log(`[Enemy] Calling attack callback with ${this.stats.damage} damage`);
             this.onAttackCallback(this.stats.damage);
-        } else {
-            console.log(`[Enemy] No attack callback set!`);
         }
     }
 
