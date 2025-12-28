@@ -487,7 +487,8 @@ export class DebugTools {
         const material = new THREE.LineBasicMaterial({ color: this.boxColor, depthTest: false });
         const box = new THREE.LineSegments(edges, material);
 
-        box.position.copy(min).add(size.multiplyScalar(0.5));
+        // 修复：使用 clone() 避免修改原始 size 向量
+        box.position.copy(min).add(size.clone().multiplyScalar(0.5));
         box.renderOrder = 997;
         this.scene.add(box);
         this.boundaryBoxes.push(box);
