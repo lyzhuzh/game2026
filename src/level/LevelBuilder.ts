@@ -550,7 +550,6 @@ export class LevelBuilder {
             // 结构类 - 大型遮挡
             'env_gate_simple',
             'env_chimney',
-            'env_cargo_a',
             'env_barrels',
             // 平台类 - 可站立遮挡
             'env_platform_large',
@@ -561,11 +560,17 @@ export class LevelBuilder {
             'env_desk_chair'
         ];
 
+        // 集装箱单独增加权重 - 多添加几组
+        const cargoTypes = ['env_cargo_a', 'env_cargo_a', 'env_cargo_a', 'env_cargo_a'];
+
+        // 合并所有类型，集装箱增加出现频率
+        const allTypes = [...obstacleTypes, ...cargoTypes];
+
         // 增加障碍物数量以提供更多视线遮挡
         const obstacleCount = this.config.obstacleCount * 2;
 
         for (let i = 0; i < obstacleCount; i++) {
-            const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+            const type = allTypes[Math.floor(Math.random() * allTypes.length)];
             const model = await this.getModel(type);
 
             if (model) {
