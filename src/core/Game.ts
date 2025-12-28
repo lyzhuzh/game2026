@@ -20,6 +20,7 @@ import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
 import { WeaponRenderer } from '../weapons/WeaponRenderer';
 import { LevelBuilder } from '../level/LevelBuilder';
+import { DebugTools } from './DebugTools';
 
 /**
  * Main Game Class
@@ -72,6 +73,9 @@ export class Game {
 
     // Level building system
     private levelBuilder: LevelBuilder;
+
+    // Debug tools system
+    private debugTools: DebugTools;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -154,6 +158,9 @@ export class Game {
 
         // Initialize level builder
         this.levelBuilder = new LevelBuilder(this.scene);
+
+        // Initialize debug tools
+        this.debugTools = new DebugTools(this.scene, this.camera);
 
         // Create renderer
         const canvas = document.createElement('canvas');
@@ -268,6 +275,8 @@ export class Game {
         console.log('[Game] Initializing level builder...');
         await this.levelBuilder.initialize();
 
+
+
         // Initialize time system
         Time.initialize();
 
@@ -292,6 +301,10 @@ export class Game {
 
         // Spawn initial items
         this.items.spawnRandomItems(10, new THREE.Vector3(0, 1, 0), 40);
+
+        // Initialize debug tools (after level generation so we have objects to measure)
+        console.log('[Game] Initializing debug tools...');
+        this.debugTools.initialize();
 
         // Register game loop callbacks
         this.gameLoop.onFixedUpdate((deltaTime) => this.onFixedUpdate(deltaTime));
@@ -650,6 +663,7 @@ export class Game {
         this.renderer.dispose();
         this.scene.clear();
 
+        window.removeEventListener('resize', this.onWindowResize);
         window.removeEventListener('resize', this.onWindowResize);
     }
 }
