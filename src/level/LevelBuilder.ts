@@ -606,6 +606,20 @@ export class LevelBuilder {
                 obstacle.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
 
                 this.scene.add(obstacle);
+
+                // 为集装箱添加红色边界框
+                if (type === 'env_cargo_a') {
+                    const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(
+                        scaledBox.max.x - scaledBox.min.x,
+                        scaledBox.max.y - scaledBox.min.y,
+                        scaledBox.max.z - scaledBox.min.z
+                    ));
+                    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+                    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+                    edges.position.copy(obstacle.position);
+                    edges.rotation.copy(obstacle.rotation);
+                    this.scene.add(edges);
+                }
             }
         }
     }
