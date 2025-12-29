@@ -71,8 +71,8 @@ export class LevelBuilder {
         // Add platforms
         await this.addPlatforms();
 
-        // Add area dividers
-        await this.addAreaDividers();
+        // Add area dividers - 暂时禁用，太靠近玩家出生点
+        // await this.addAreaDividers();
 
         // Add obstacles/cover
         await this.addObstacles();
