@@ -1103,7 +1103,7 @@ export class LevelBuilder {
 
     /**
      * Get random position away from center
-     * Excludes corridor area along north wall
+     * Excludes corridor area and divider walls
      */
     private getRandomPosition(minDistance: number): { x: number, z: number } {
         const corridorArea = {
@@ -1113,10 +1113,18 @@ export class LevelBuilder {
             zMax: -90  // 走廊区域
         };
 
+        // 分隔墙通道区域（玩家出生点附近的通道）
+        const channelZone = {
+            xMin: -15,  // 东西通道宽度的一半
+            xMax: 15,
+            zMin: -15,  // 南北通道宽度的一半
+            zMax: 15
+        };
+
         let attempts = 0;
         let pos;
 
-        // 尝试生成位置，避免走廊区域
+        // 尝试生成位置，避免走廊区域和分隔墙通道
         do {
             const angle = Math.random() * Math.PI * 2;
             const distance = minDistance + Math.random() * (this.config.size - minDistance - 5);
@@ -1128,9 +1136,11 @@ export class LevelBuilder {
 
             attempts++;
         } while (
-            attempts < 50 &&
-            pos.x >= corridorArea.xMin && pos.x <= corridorArea.xMax &&
-            pos.z >= corridorArea.zMin && pos.z <= corridorArea.zMax
+            attempts < 100 &&
+            ((pos.x >= corridorArea.xMin && pos.x <= corridorArea.xMax &&
+              pos.z >= corridorArea.zMin && pos.z <= corridorArea.zMax) ||
+             (pos.x >= channelZone.xMin && pos.x <= channelZone.xMax &&
+              pos.z >= channelZone.zMin && pos.z <= channelZone.zMax))
         );
 
         return pos;
