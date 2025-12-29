@@ -71,8 +71,8 @@ export class LevelBuilder {
         // Add platforms
         await this.addPlatforms();
 
-        // Add area dividers - 暂时禁用，太靠近玩家出生点
-        // await this.addAreaDividers();
+        // Add area dividers
+        await this.addAreaDividers();
 
         // Add obstacles/cover
         await this.addObstacles();
@@ -502,6 +502,7 @@ export class LevelBuilder {
     /**
      * Add area dividers - 创建区域分隔墙
      * 使用集装箱紧密排列成实心墙，将场地分成4个区域
+     * 玩家出生点在 (0, HEIGHT, 5)，分隔墙远离出生点
      */
     private async addAreaDividers(): Promise<void> {
         // 使用集装箱作为分隔墙
@@ -520,8 +521,8 @@ export class LevelBuilder {
         // 通道宽度
         const channelWidth = 10;
 
-        // 东西向集装箱墙（Z = -15）
-        const wallZ = -15;
+        // 东西向集装箱墙（Z = -30）- 移到更南边，远离玩家出生点 Z=5
+        const wallZ = -30;
         // 北半部分（X < -通道/2）
         for (let layer = 0; layer < wallThickness; layer++) {
             for (let x = -48; x < -channelWidth / 2; x += cargoSize) {
@@ -535,8 +536,8 @@ export class LevelBuilder {
             }
         }
 
-        // 南北向集装箱墙（X = -2）
-        const wallX = -2;
+        // 南北向集装箱墙（X = -30）- 移到更西边，远离玩家出生点 X=0
+        const wallX = -30;
         // 西半部分（Z < -通道/2）
         for (let layer = 0; layer < wallThickness; layer++) {
             for (let z = -48; z < -channelWidth / 2; z += cargoSize) {
