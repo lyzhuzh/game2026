@@ -613,14 +613,13 @@ export class LevelBuilder {
 
         // 添加物理碰撞体
         if (this.physics) {
+            // 使用缩放后的边界框
+            const scaledBox = new THREE.Box3().setFromObject(obstacle);
             const size = new THREE.Vector3();
-            box.getSize(size);
-
-            // 调整尺寸（考虑缩放）
-            size.multiplyScalar(scaleFactor);
+            scaledBox.getSize(size);
 
             const center = new THREE.Vector3();
-            box.getCenter(center);
+            scaledBox.getCenter(center);
 
             const body = PhysicsBodyFactory.createBox(
                 this.physics,
@@ -628,11 +627,11 @@ export class LevelBuilder {
                 { type: 'static', mass: 0 }
             );
 
-            // 设置物理体位置（考虑堆叠）
+            // 设置物理体位置（使用实际的障碍物中心）
             body.setPosition({
-                x: obstacle.position.x,
-                y: center.y + layer * cargoHeight,
-                z: obstacle.position.z
+                x: center.x,
+                y: center.y,
+                z: center.z
             });
         }
     }
@@ -764,6 +763,32 @@ export class LevelBuilder {
                     edges.position.copy(center);
                     edges.rotation.copy(obstacle.rotation);
                     this.scene.add(edges);
+                }
+
+                // 为所有障碍物添加物理碰撞体
+                if (this.physics) {
+                    const bbox = new THREE.Box3().setFromObject(obstacle);
+                    const size = new THREE.Vector3();
+                    bbox.getSize(size);
+                    const center = new THREE.Vector3();
+                    bbox.getCenter(center);
+
+                    const body = PhysicsBodyFactory.createBox(
+                        this.physics,
+                        { x: size.x, y: size.y, z: size.z },
+                        { type: 'static', mass: 0 }
+                    );
+
+                    body.setPosition({
+                        x: center.x,
+                        y: center.y,
+                        z: center.z
+                    });
+
+                    // 设置物理体旋转（如果障碍物有旋转）
+                    if (obstacle.rotation.y !== 0) {
+                        body.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), obstacle.rotation.y);
+                    }
                 }
             }
         }
