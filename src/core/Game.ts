@@ -551,8 +551,8 @@ export class Game {
      * Respawn player at spawn point
      */
     private respawnPlayer(): void {
-        // 重置角色控制器位置到出生点
-        const spawnPos = new THREE.Vector3(0, GAME_CONFIG.PLAYER.HEIGHT, 0);
+        // 重置角色控制器位置到出生点（与初始化位置一致）
+        const spawnPos = new THREE.Vector3(0, GAME_CONFIG.PLAYER.HEIGHT, 5);
         this.character.setPosition(spawnPos);
 
         // 重置相机朝向（面向 Z 轴负方向，yaw=0, pitch=0）
