@@ -506,7 +506,12 @@ export class LevelBuilder {
     private async addAreaDividers(): Promise<void> {
         // 使用集装箱作为分隔墙
         const cargoModel = await this.getModel('env_cargo_a');
-        if (!cargoModel) return;
+        if (!cargoModel) {
+            console.warn('[LevelBuilder] 集装箱模型加载失败: env_cargo_a');
+            return;
+        }
+
+        console.log('[LevelBuilder] 集装箱模型已加载，开始创建分隔墙');
 
         // 集装箱尺寸（大约）
         const cargoSize = 4;
@@ -553,6 +558,18 @@ export class LevelBuilder {
     private async spawnDividerObstacle(model: THREE.Group, x: number, z: number, layer: number = 0): Promise<void> {
         const obstacle = this.deepCloneGltf(model);
 
+        // 检查克隆后的模型是否有内容
+        let hasMesh = false;
+        obstacle.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                hasMesh = true;
+            }
+        });
+
+        if (!hasMesh) {
+            console.warn('[LevelBuilder] 克隆的集装箱模型没有网格内容');
+        }
+
         // 缩放集装箱
         const scaleFactor = 1.2;
         obstacle.scale.setScalar(scaleFactor);
@@ -570,6 +587,15 @@ export class LevelBuilder {
 
         // 添加到场景
         this.scene.add(obstacle);
+
+        // 调试：只输出第一个集装箱的信息
+        if (x === -48 && z === -15 && layer === 0) {
+            console.log('[LevelBuilder] 第一个集装箱信息:');
+            console.log('  位置:', obstacle.position);
+            console.log('  缩放:', obstacle.scale);
+            console.log('  边界:', box);
+            console.log('  是否有网格:', hasMesh);
+        }
 
         // 为集装箱添加红色边界框（调试用）
         const bbox = new THREE.Box3().setFromObject(obstacle);
