@@ -597,20 +597,6 @@ export class LevelBuilder {
             console.log('  是否有网格:', hasMesh);
         }
 
-        // 为集装箱添加红色边界框（调试用）
-        const bbox = new THREE.Box3().setFromObject(obstacle);
-        const size = new THREE.Vector3();
-        bbox.getSize(size);
-        const center = new THREE.Vector3();
-        bbox.getCenter(center);
-
-        const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
-        const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
-        const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-        edges.position.copy(center);
-        edges.rotation.copy(obstacle.rotation);
-        this.scene.add(edges);
-
         // 添加物理碰撞体
         if (this.physics) {
             // 使用缩放后的边界框
@@ -746,24 +732,8 @@ export class LevelBuilder {
                 // 随机旋转
                 obstacle.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
 
+                // 添加到场景
                 this.scene.add(obstacle);
-
-                // 为集装箱添加红色边界框（调试用）
-                if (type === 'env_cargo_a') {
-                    // 创建与集装箱尺寸匹配的边界框
-                    const bbox = new THREE.Box3().setFromObject(obstacle);
-                    const size = new THREE.Vector3();
-                    bbox.getSize(size);
-                    const center = new THREE.Vector3();
-                    bbox.getCenter(center);
-
-                    const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
-                    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
-                    const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-                    edges.position.copy(center);
-                    edges.rotation.copy(obstacle.rotation);
-                    this.scene.add(edges);
-                }
 
                 // 为所有障碍物添加物理碰撞体
                 if (this.physics) {
@@ -956,6 +926,32 @@ export class LevelBuilder {
                         y: centerY,
                         z: box.min.z + wallThickness / 2
                     });
+
+                    // 走廊顶部 - 防止玩家跳跃穿越
+                    const roofThickness = 1;
+                    const roofBody = PhysicsBodyFactory.createBox(
+                        this.physics,
+                        { x: actualWidth, y: roofThickness, z: actualDepth },
+                        { type: 'static', mass: 0 }
+                    );
+                    roofBody.setPosition({
+                        x: centerX,
+                        y: box.max.y,
+                        z: centerZ
+                    });
+
+                    // 走廊地板 - 玩家可以在上面行走
+                    const floorThickness = 0.5;
+                    const floorBody = PhysicsBodyFactory.createBox(
+                        this.physics,
+                        { x: actualWidth, y: floorThickness, z: actualDepth },
+                        { type: 'static', mass: 0 }
+                    );
+                    floorBody.setPosition({
+                        x: centerX,
+                        y: box.min.y,
+                        z: centerZ
+                    });
                 }
 
                 // 墙壁正面表面位置（基于 DebugTools 测量）
@@ -1118,15 +1114,37 @@ export class LevelBuilder {
 
     /**
      * Get random position away from center
+     * Excludes corridor area along north wall
      */
     private getRandomPosition(minDistance: number): { x: number, z: number } {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = minDistance + Math.random() * (this.config.size - minDistance - 5);
-
-        return {
-            x: Math.cos(angle) * distance,
-            z: Math.sin(angle) * distance
+        const corridorArea = {
+            xMin: -50,
+            xMax: 50,
+            zMin: -110,
+            zMax: -90  // 走廊区域
         };
+
+        let attempts = 0;
+        let pos;
+
+        // 尝试生成位置，避免走廊区域
+        do {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = minDistance + Math.random() * (this.config.size - minDistance - 5);
+
+            pos = {
+                x: Math.cos(angle) * distance,
+                z: Math.sin(angle) * distance
+            };
+
+            attempts++;
+        } while (
+            attempts < 50 &&
+            pos.x >= corridorArea.xMin && pos.x <= corridorArea.xMax &&
+            pos.z >= corridorArea.zMin && pos.z <= corridorArea.zMax
+        );
+
+        return pos;
     }
 
     /**
