@@ -1088,7 +1088,7 @@ export class LevelBuilder {
         const positions: Array<{ x: number, y: number, z: number, rotation?: number }> = [];
 
         for (let i = 0; i < count; i++) {
-            const pos = this.getRandomPosition(15); // Keep away from center spawn
+            const pos = this.getRandomPosition(35); // 远离中心出生点和分隔墙
             const height = 1 + Math.random() * 3;
             positions.push({
                 x: pos.x,
@@ -1114,11 +1114,13 @@ export class LevelBuilder {
         };
 
         // 分隔墙通道区域（玩家出生点附近的通道）
+        // 南北向墙在 X=-2，东西向墙在 Z=-15，玩家出生点在 (0,0)
+        // 需要排除较大的中心区域，确保玩家出生点附近没有障碍物
         const channelZone = {
-            xMin: -15,  // 东西通道宽度的一半
-            xMax: 15,
-            zMin: -15,  // 南北通道宽度的一半
-            zMax: 15
+            xMin: -30,  // 扩大排除区域，远离南北向墙 (X=-2)
+            xMax: 30,
+            zMin: -25,  // 扩大排除区域，远离东西向墙 (Z=-15)
+            zMax: 25
         };
 
         let attempts = 0;
