@@ -297,6 +297,9 @@ export class Game {
         // Add lights
         this.setupLights();
 
+        // 调试：输出玩家周围的所有静态物体
+        this.debugNearbyStaticObjects();
+
         // Set initial player position for enemy spawning
         this.enemies.setPlayerPosition(this.playerPosition);
 
@@ -563,6 +566,57 @@ export class Game {
         this.fpsCamera.setPosition(this.playerPosition);
 
         console.log('[Game] Player respawned at spawn point');
+    }
+
+    /**
+     * 调试：输出玩家周围的所有静态物体
+     */
+    private debugNearbyStaticObjects(): void {
+        const allBodies = this.physics.getBodies();
+        const playerPos = this.character.getPosition();
+
+        console.log('===== 调试信息：玩家周围的静态物体 =====');
+        console.log('[玩家出生点]', {
+            x: playerPos.x.toFixed(2),
+            y: playerPos.y.toFixed(2),
+            z: playerPos.z.toFixed(2)
+        });
+
+        // 玩家周围的半径（60单位）
+        const checkRadius = 60;
+        let nearbyCount = 0;
+
+        for (const body of allBodies) {
+            if (body.type !== CANNON.Body.STATIC) continue;
+
+            const dx = body.position.x - playerPos.x;
+            const dz = body.position.z - playerPos.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            if (distance < checkRadius) {
+                const shape = body.shapes[0];
+                if (shape instanceof CANNON.Box) {
+                    nearbyCount++;
+                    const halfExtents = shape.halfExtents;
+                    console.log(`[静态物体 ${nearbyCount}]`, {
+                        位置: {
+                            x: body.position.x.toFixed(2),
+                            y: body.position.y.toFixed(2),
+                            z: body.position.z.toFixed(2)
+                        },
+                        尺寸: {
+                            x: (halfExtents.x * 2).toFixed(2),
+                            y: (halfExtents.y * 2).toFixed(2),
+                            z: (halfExtents.z * 2).toFixed(2)
+                        },
+                        距离玩家: distance.toFixed(2) + ' 单位'
+                    });
+                }
+            }
+        }
+
+        console.log(`[总计] 在玩家 ${checkRadius} 单位范围内找到 ${nearbyCount} 个静态物体`);
+        console.log('========================================');
     }
 
     /**

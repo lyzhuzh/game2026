@@ -266,6 +266,17 @@ export class CharacterController {
             const shape = body.shapes[0];
             if (shape instanceof CANNON.Box) {
                 if (this.checkBoxCollision(position, body, shape as CANNON.Box, radius, height)) {
+                    // 碰撞检测日志
+                    const halfExtents = (shape as CANNON.Box).halfExtents;
+                    console.log('[碰撞检测] 玩家与静态物体碰撞:', {
+                        玩家位置: { x: position.x.toFixed(2), y: position.y.toFixed(2), z: position.z.toFixed(2) },
+                        物体位置: { x: body.position.x.toFixed(2), y: body.position.y.toFixed(2), z: body.position.z.toFixed(2) },
+                        物体尺寸: {
+                            x: (halfExtents.x * 2).toFixed(2),
+                            y: (halfExtents.y * 2).toFixed(2),
+                            z: (halfExtents.z * 2).toFixed(2)
+                        }
+                    });
                     return true;
                 }
             }
