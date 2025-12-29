@@ -15,7 +15,7 @@ export const GAME_CONFIG = {
         RADIUS: 0.4,
         WALK_SPEED: 5.0,
         SPRINT_SPEED: 8.0,
-        JUMP_FORCE: 8.0,
+        JUMP_FORCE: 5.0,  // 降低跳跃力（从8.0到5.0）
         MOUSE_SENSITIVITY: 0.002,
         MAX_HEALTH: 100,
         MAX_ARMOR: 100
