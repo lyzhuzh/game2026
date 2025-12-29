@@ -25,12 +25,30 @@ npm run mixamo:organize   # 整理下载的文件
 npm run organize:assets   # 同 mixamo:organize
 ```
 
+## 项目初始化
+
+首次克隆项目后：
+1. 运行 `npm install` 安装依赖
+2. 运行 `npm run dev` 启动开发服务器
+3. 浏览器访问 `http://localhost:3000`
+4. 点击页面开始游戏（会初始化音频并锁定鼠标指针）
+
+## 开发工作流
+
+1. **修改代码** - 在 `src/` 目录下进行修改
+2. **查看效果** - Vite 热更新会自动刷新浏览器
+3. **调试** - 使用浏览器控制台查看日志
+4. **ANT-DEBUG** - 游戏内置调试工具，按 `H` 查看帮助
+5. **提交** - 完成一个阶段后，移除多余日志并 git commit
+
 ## 技术栈
 
 - **Three.js** (v0.160.0) - 3D 渲染
 - **Cannon-es** (v0.20.0) - 物理引擎
 - **TypeScript** (v5.3.0) - 类型安全开发
 - **Vite** (v5.0.0) - 构建工具和开发服务器
+- **puppeteer** (v21.0.0) - Mixamo 动画下载工具
+- **ts-node** (v10.9.0) - 直接运行 TypeScript 脚本
 
 ## 架构概述
 
@@ -68,12 +86,36 @@ npm run organize:assets   # 同 mixamo:organize
 
 **重要**：更新顺序很重要。在调用 `input.update()` 之前消费输入状态。
 
+**默认键位绑定快速参考**：
+- **WASD** - 移动（前/后/左/右）
+- **空格** - 跳跃
+- **左 Ctrl** - 蹲伏
+- **左 Shift** - 冲刺
+- **E** - 交互
+- **鼠标左键** - 攻击
+- **鼠标右键** - 瞄准（狙击镜）
+- **R** - 换弹
+- **1-7** - 切换武器
+- **鼠标滚轮** - 上下切换武器
+- **ESC** - 暂停
+- **Tab** - 切换库存
+- **F1** - 切换控制台
+
 ### 武器系统
 
-`src/weapons/` 中的两种武器类型：
+`src/weapons/` 中的三种武器类型：
 - **HitscanWeapon**：即时命中（手枪、步枪、霰弹枪、冲锋枪、狙击枪）
 - **ProjectileWeapon**：物理投射物（火箭发射器）
 - **Flamethrower**：持续火焰锥形伤害
+
+**武器槽位快速参考**：
+1. 手枪 - 半自动，起始武器
+2. 步枪 - 全自动，均衡性能
+3. 霰弹枪 - 多发弹丸，近距离高伤害
+4. 冲锋枪 (SMG) - 高射速，低伤害
+5. 狙击枪 - 单发高伤害，可瞄准放大
+6. 火箭发射器 - 投射物，范围爆炸伤害
+7. 火焰喷射器 - 锥形持续火焰伤害
 
 WeaponManager 处理：
 - 武器切换（数字键 1-7、鼠标滚轮）
@@ -90,7 +132,11 @@ WeaponManager 处理：
 - 若无动画则回退到程序化动画
 - 物理体集成用于碰撞检测
 
-`ENEMY_CONFIGS` 中配置的敌人类型：grunt、soldier、heavy、sniper
+**敌人类型（ENEMY_CONFIGS）**：
+- **grunt** - 基础敌人，低生命值，低伤害
+- **soldier** - 标准敌人，中等属性
+- **heavy** - 重装敌人，高生命值，高伤害，移动慢
+- **sniper** - 狙击手，远程高伤害，低生命值
 
 ### 资源管理
 
@@ -241,3 +287,7 @@ this.enemies.setOnEnemyDeath((enemy) => {
 5. **资源预加载**：关键资源在 `Game.initialize()` 中通过 `AssetManager.initialize()` 预加载。
 
 6. **伤害系统**：武器调用 `onHit` 回调并传递位置和伤害。这会路由到 `EnemyManager.damageEnemyAtPosition()`，它会找到最近的敌人并应用伤害。
+
+7. **游戏循环防死螺旋**：GameLoop 实现了最大帧时间限制（0.25秒），防止"死亡螺旋"问题，即当帧处理时间过长时导致累积器失控。
+
+8. **投射物管理**：ProjectileManager 使用对象池管理火箭弹等投射物，支持爆炸范围伤害。
