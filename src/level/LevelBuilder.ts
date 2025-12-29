@@ -1185,4 +1185,12 @@ export class LevelBuilder {
         // In a real implementation, we would track all created objects and remove them
         // For now, we rely on the main game clear logic or just add to scene
     }
+
+    /**
+     * Dispose of resources
+     */
+    dispose(): void {
+        this.clearLevel();
+        this.loadedModels.clear();
+    }
 }

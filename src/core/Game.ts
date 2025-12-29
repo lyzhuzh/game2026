@@ -22,6 +22,7 @@ import { GAME_ASSETS } from '../assets/AssetConfig';
 import { WeaponRenderer } from '../weapons/WeaponRenderer';
 import { LevelBuilder } from '../level/LevelBuilder';
 import { DebugTools } from './DebugTools';
+import { TimerManager } from '../utils/TimerManager';
 
 /**
  * Main Game Class
@@ -78,6 +79,9 @@ export class Game {
     // Debug tools system
     private debugTools: DebugTools;
 
+    // Timer management system
+    private timerManager: TimerManager;
+
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
 
@@ -91,6 +95,9 @@ export class Game {
 
     private constructor() {
         this.gameLoop = new GameLoop();
+
+        // Initialize timer manager (should be first to track all timers)
+        this.timerManager = new TimerManager();
 
         // Initialize input system
         this.input = InputManager.getInstance();
@@ -127,7 +134,7 @@ export class Game {
         });
 
         // Initialize UI system
-        this.ui = new UIManager();
+        this.ui = new UIManager(this.timerManager);
 
         // Initialize sound system
         this.sound = SoundManager.getInstance();
@@ -192,7 +199,7 @@ export class Game {
         }
 
         // Initialize enemy system first (needed by weapon onHit callback)
-        this.enemies = new EnemyManager(this.physics, this.scene);
+        this.enemies = new EnemyManager(this.physics, this.scene, this.timerManager);
 
         // Set enemy death callback to update player score and kills
         this.enemies.setOnEnemyDeath((enemy) => {
@@ -265,6 +272,14 @@ export class Game {
             Game.instance = new Game();
         }
         return Game.instance;
+    }
+
+    /**
+     * Get the timer manager instance
+     * Use this to create managed timers that will be automatically cleaned up
+     */
+    getTimerManager(): TimerManager {
+        return this.timerManager;
     }
 
     /**
@@ -458,6 +473,9 @@ export class Game {
 
         // Update weapon system (must be BEFORE input.update() to detect just-pressed keys)
         this.weapons.update(deltaTime);
+
+        // Update sniper scope zoom
+        this.updateSniperScope();
 
         // Update projectile system
         this.projectiles.update(deltaTime);
@@ -670,6 +688,26 @@ export class Game {
     }
 
     /**
+     * Update sniper scope zoom
+     */
+    private updateSniperScope(): void {
+        const weaponState = this.weapons.getCurrentWeaponState();
+
+        // Only apply zoom when using sniper rifle
+        if (weaponState && weaponState.type === 'sniper') {
+            const isAiming = this.input.isActionPressed('aim');
+            if (isAiming) {
+                this.fpsCamera.setZoom(6); // 6x zoom
+            } else {
+                this.fpsCamera.resetZoom();
+            }
+        } else {
+            // Reset zoom when not using sniper
+            this.fpsCamera.resetZoom();
+        }
+    }
+
+    /**
      * Update weapon HUD
      */
     private updateWeaponHUD(): void {
@@ -757,6 +795,9 @@ export class Game {
         this.stop();
         this.gameLoop.clearCallbacks();
 
+        // Clear all timers first to prevent callbacks after disposal
+        this.timerManager.dispose();
+
         // Dispose particles
         this.particles.dispose();
         this.projectiles.clear();
@@ -774,7 +815,6 @@ export class Game {
         this.renderer.dispose();
         this.scene.clear();
 
-        window.removeEventListener('resize', this.onWindowResize);
         window.removeEventListener('resize', this.onWindowResize);
     }
 }

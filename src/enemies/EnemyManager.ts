@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Enemy, EnemyType } from './Enemy';
+import { TimerManager } from '../utils/TimerManager';
 
 export interface EnemySpawnConfig {
     type: EnemyType;
@@ -33,9 +34,13 @@ export class EnemyManager {
     private onEnemyAttackCallback?: (damage: number) => void;
     private onEnemyHurtCallback?: () => void;
 
-    constructor(physics: PhysicsWorld, scene: THREE.Scene) {
+    // Timer management
+    private timerManager: TimerManager;
+
+    constructor(physics: PhysicsWorld, scene: THREE.Scene, timerManager?: TimerManager) {
         this.physics = physics;
         this.scene = scene;
+        this.timerManager = timerManager || new TimerManager();
     }
 
     /**
@@ -229,7 +234,7 @@ export class EnemyManager {
             // console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
 
             // Auto-start next wave after delay
-            setTimeout(() => {
+            this.timerManager.setTimeout(() => {
                 this.startWave(this.waveNumber + 1);
             }, 3000);
         }
@@ -243,7 +248,7 @@ export class EnemyManager {
             const enemy = this.enemies[i];
             if (enemy.isEnemyDead()) {
                 // Remove after delay (for death animation)
-                setTimeout(() => {
+                this.timerManager.setTimeout(() => {
                     const index = this.enemies.indexOf(enemy);
                     if (index !== -1) {
                         enemy.dispose();
@@ -413,5 +418,6 @@ export class EnemyManager {
      */
     dispose(): void {
         this.clearAllEnemies();
+        this.timerManager.dispose();
     }
 }

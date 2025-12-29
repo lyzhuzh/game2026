@@ -7,13 +7,16 @@ import * as THREE from 'three';
 import { PlayerState } from '../player/Player';
 import { DamageNumber } from './components/DamageNumber';
 import { KillFeed } from './components/KillFeed';
+import { TimerManager } from '../utils/TimerManager';
 
 export class UIManager {
     // Elements cache
     private elements: Map<string, HTMLElement> = new Map();
     private initialized = false;
+    private timerManager: TimerManager;
 
-    constructor() {
+    constructor(timerManager?: TimerManager) {
+        this.timerManager = timerManager || new TimerManager();
         this.cacheElements();
     }
 
@@ -222,7 +225,7 @@ export class UIManager {
         const crosshair = this.elements.get('crosshair');
         if (crosshair) {
             crosshair.classList.add('damage');
-            setTimeout(() => {
+            this.timerManager.setTimeout(() => {
                 crosshair.classList.remove('damage');
             }, 200);
         }
@@ -276,9 +279,9 @@ export class UIManager {
         announcement.classList.remove('hidden');
         announcement.classList.add('show');
 
-        setTimeout(() => {
+        this.timerManager.setTimeout(() => {
             announcement.classList.remove('show');
-            setTimeout(() => {
+            this.timerManager.setTimeout(() => {
                 announcement.classList.add('hidden');
             }, 500);
         }, 2000);
@@ -302,9 +305,9 @@ export class UIManager {
         notification.classList.add('show');
 
         // Auto hide after 2 seconds
-        setTimeout(() => {
+        this.timerManager.setTimeout(() => {
             notification.classList.remove('show');
-            setTimeout(() => {
+            this.timerManager.setTimeout(() => {
                 notification.classList.add('hidden');
             }, 500);
         }, 2000);
@@ -391,5 +394,6 @@ export class UIManager {
     dispose(): void {
         KillFeed.dispose();
         DamageNumber.clear();
+        this.timerManager.dispose();
     }
 }

@@ -28,6 +28,12 @@ export class FirstPersonCamera {
     private shakeTime: number = 0;
     private shakeOffset: THREE.Vector3 = new THREE.Vector3();
 
+    // FOV / Zoom
+    private baseFov: number;
+    private currentFov: number;
+    private targetFov: number;
+    private fovTransitionSpeed: number = 10; // FOV 变化速度
+
     private readonly input: InputManager;
 
     constructor(config: CameraConfig = {}) {
@@ -47,6 +53,11 @@ export class FirstPersonCamera {
         // Configure settings
         this.sensitivity = config.sensitivity ?? GAME_CONFIG.PLAYER.MOUSE_SENSITIVITY;
         this.maxPitchAngle = config.maxPitchAngle ?? Math.PI / 2 - 0.01; // ~89 degrees
+
+        // Initialize FOV settings
+        this.baseFov = config.fov ?? GAME_CONFIG.CAMERA.FOV;
+        this.currentFov = this.baseFov;
+        this.targetFov = this.baseFov;
 
         // Initial rotation (looking forward)
         this.yaw = 0;
@@ -72,6 +83,13 @@ export class FirstPersonCamera {
 
                 this.updateCameraRotation();
             }
+        }
+
+        // Update FOV (smooth zoom transition)
+        if (Math.abs(this.currentFov - this.targetFov) > 0.1) {
+            this.currentFov += (this.targetFov - this.currentFov) * this.fovTransitionSpeed * deltaTime;
+            this.camera.fov = this.currentFov;
+            this.camera.updateProjectionMatrix();
         }
 
         // Update camera shake
@@ -217,6 +235,38 @@ export class FirstPersonCamera {
     onWindowResize(width: number, height: number): void {
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+    }
+
+    /**
+     * Set zoom level (multiplier: 1 = normal, 6 = 6x zoom)
+     */
+    setZoom(multiplier: number): void {
+        if (multiplier <= 0) {
+            this.targetFov = this.baseFov;
+        } else {
+            this.targetFov = this.baseFov / multiplier;
+        }
+    }
+
+    /**
+     * Reset zoom to normal
+     */
+    resetZoom(): void {
+        this.targetFov = this.baseFov;
+    }
+
+    /**
+     * Check if camera is currently zoomed
+     */
+    isZoomed(): boolean {
+        return Math.abs(this.currentFov - this.baseFov) > 1;
+    }
+
+    /**
+     * Get current zoom multiplier
+     */
+    getZoomMultiplier(): number {
+        return this.baseFov / this.currentFov;
     }
 
     /**

@@ -126,102 +126,53 @@ export class PhysicsWorld {
     }
 
     /**
-     * Raycast test - manual AABB intersection
+     * Raycast test - optimized using Cannon-es built-in raycasting
      * @param from - Start position
      * @param to - End position
      * @returns Raycast result or null
      */
     raycast(from: CANNON.Vec3, to: CANNON.Vec3): CANNON.RaycastResult | null {
-        // Calculate direction
+        // Calculate direction and distance
         const direction = to.vsub(from);
         const maxDistance = direction.length();
-        direction.normalize();
 
-        // Find closest hit
-        let closestResult: CANNON.RaycastResult | null = null;
-        let closestDistance = maxDistance;
+        // Create ray and result
+        const ray = new CANNON.Ray(from, to);
+        const result = new CANNON.RaycastResult();
+        result.reset();
 
-        for (const body of this.bodies) {
+        // Mode 1: closest hit
+        ray.mode = CANNON.Ray.CLOSEST;
+        ray.skipBackfaces = true;
+
+        // Perform raycast against the world
+        ray.intersectWorld(this.world, result);
+
+        // Check if we hit something valid
+        if (result.hasHit) {
+            // Filter out player body and ground
+            const body = result.body;
+
             // Skip player body (kinematic with mass 0)
             if (body.type === CANNON.Body.KINEMATIC && body.mass === 0) {
-                continue;
+                return null;
             }
 
             // Skip ground (static with plane shape)
-            if (body.type === CANNON.Body.STATIC && body.shapes.some((s: any) => s instanceof CANNON.Plane)) {
-                continue;
+            if (body.type === CANNON.Body.STATIC &&
+                body.shapes.some((s: any) => s instanceof CANNON.Plane)) {
+                return null;
             }
 
-            // Check if body is a Box shape (enemies)
-            const shape = body.shapes[0];
-            if (shape instanceof CANNON.Box) {
-                // Get box half extents
-                const halfExtents = (shape as CANNON.Box).halfExtents;
-
-                // Simple ray-box intersection test
-                // Transform ray to local space of the box
-                const rayLocalFrom = from.vsub(body.position);
-                const rayLocalDir = direction.clone();
-
-                // Rotate by inverse of body quaternion
-                const invQuat = body.quaternion.inverse();
-                invQuat.vmult(rayLocalFrom, rayLocalFrom);
-                invQuat.vmult(rayLocalDir, rayLocalDir);
-
-                // AABB slab method for ray-box intersection
-                let tMin = -Infinity;
-                let tMax = Infinity;
-
-                for (let i = 0; i < 3; i++) {
-                    const axis = ['x', 'y', 'z'][i];
-                    const min = -halfExtents[axis];
-                    const max = halfExtents[axis];
-                    const origin = rayLocalFrom[axis];
-                    const dir = rayLocalDir[axis];
-
-                    if (Math.abs(dir) < 0.0001) {
-                        // Ray parallel to slab
-                        if (origin < min || origin > max) {
-                            tMin = Infinity;
-                            tMax = -Infinity;
-                        }
-                    } else {
-                        let t1 = (min - origin) / dir;
-                        let t2 = (max - origin) / dir;
-                        if (t1 > t2) {
-                            const temp = t1;
-                            t1 = t2;
-                            t2 = temp;
-                        }
-                        tMin = Math.max(tMin, t1);
-                        tMax = Math.min(tMax, t2);
-                    }
-                }
-
-                // Check if intersection is valid
-                if (tMin <= tMax && tMax >= 0 && tMin < maxDistance) {
-                    const hitDistance = Math.max(0, tMin);
-                    if (hitDistance < closestDistance) {
-                        closestDistance = hitDistance;
-                        closestResult = new CANNON.RaycastResult();
-                        closestResult.hasHit = true;
-                        closestResult.body = body;
-                        closestResult.distance = hitDistance;
-
-                        // Calculate hit point in world space
-                        const hitPoint = from.clone();
-                        hitPoint.vadd(direction.scale(hitDistance), hitPoint);
-                        closestResult.hitPointWorld = hitPoint;
-                        closestResult.hitPoint = hitPoint;
-
-                        // Set normal (default to facing the ray direction)
-                        closestResult.hitNormal = direction.clone().scale(-1);
-                    }
-                }
+            // Only hit box shapes (enemies have box colliders)
+            if (!body.shapes.some((s: any) => s instanceof CANNON.Box)) {
+                return null;
             }
+
+            return result;
         }
 
-        return closestResult;
+        return null;
     }
 
     /**
