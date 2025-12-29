@@ -927,8 +927,10 @@ export class LevelBuilder {
                         z: box.min.z + wallThickness / 2
                     });
 
-                    // 走廊顶部 - 防止玩家跳跃穿越
-                    const roofThickness = 1;
+                    // 走廊顶部 - 只覆盖走廊开口部分，防止跳跃
+                    // 但不覆盖整个高度，让玩家可以正常进入
+                    const roofThickness = 0.5;
+                    const roofHeight = 3;  // 顶部距离地面的高度（足够阻挡跳跃）
                     const roofBody = PhysicsBodyFactory.createBox(
                         this.physics,
                         { x: actualWidth, y: roofThickness, z: actualDepth },
@@ -936,20 +938,7 @@ export class LevelBuilder {
                     );
                     roofBody.setPosition({
                         x: centerX,
-                        y: box.max.y,
-                        z: centerZ
-                    });
-
-                    // 走廊地板 - 玩家可以在上面行走
-                    const floorThickness = 0.5;
-                    const floorBody = PhysicsBodyFactory.createBox(
-                        this.physics,
-                        { x: actualWidth, y: floorThickness, z: actualDepth },
-                        { type: 'static', mass: 0 }
-                    );
-                    floorBody.setPosition({
-                        x: centerX,
-                        y: box.min.y,
+                        y: roofHeight,
                         z: centerZ
                     });
                 }
