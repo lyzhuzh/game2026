@@ -599,19 +599,19 @@ export class Game {
                 if (shape instanceof CANNON.Box) {
                     nearbyCount++;
                     const halfExtents = shape.halfExtents;
-                    console.log(`[静态物体 ${nearbyCount}]`, {
-                        位置: {
-                            x: body.position.x.toFixed(2),
-                            y: body.position.y.toFixed(2),
-                            z: body.position.z.toFixed(2)
-                        },
-                        尺寸: {
-                            x: (halfExtents.x * 2).toFixed(2),
-                            y: (halfExtents.y * 2).toFixed(2),
-                            z: (halfExtents.z * 2).toFixed(2)
-                        },
-                        距离玩家: distance.toFixed(2) + ' 单位'
-                    });
+                    const posX = body.position.x.toFixed(2);
+                    const posY = body.position.y.toFixed(2);
+                    const posZ = body.position.z.toFixed(2);
+                    const sizeX = (halfExtents.x * 2).toFixed(2);
+                    const sizeY = (halfExtents.y * 2).toFixed(2);
+                    const sizeZ = (halfExtents.z * 2).toFixed(2);
+
+                    // 距离玩家小于10的物体用红色警告
+                    if (distance < 10) {
+                        console.warn(`[静态物体 ${nearbyCount}] ⚠️ 距离玩家 ${distance.toFixed(2)} 单位 - 位置:(${posX}, ${posY}, ${posZ}) 尺寸:${sizeX}x${sizeY}x${sizeZ}`);
+                    } else {
+                        console.log(`[静态物体 ${nearbyCount}] 距离: ${distance.toFixed(2)} - 位置:(${posX}, ${posY}, ${posZ}) 尺寸:${sizeX}x${sizeY}x${sizeZ}`);
+                    }
                 }
             }
         }
