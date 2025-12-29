@@ -84,6 +84,11 @@ export class Game {
     // Player position
     private playerPosition: THREE.Vector3;
 
+    // Footstep audio
+    private lastFootstepTime: number = 0;
+    private footstepInterval: number = 0.45; // 步伐间隔（秒）
+    private lastPlayerPos: THREE.Vector3;
+
     private constructor() {
         this.gameLoop = new GameLoop();
 
@@ -131,6 +136,7 @@ export class Game {
         this.fpsCamera = new FirstPersonCamera();
         this.movement = new MovementController();
         this.playerPosition = new THREE.Vector3(0, GAME_CONFIG.PLAYER.HEIGHT, 5);
+        this.lastPlayerPos = this.playerPosition.clone();
 
         // Create basic Three.js objects
         this.scene = new THREE.Scene();
@@ -439,6 +445,9 @@ export class Game {
         this.playerPosition.copy(eyePos);
         this.fpsCamera.setPosition(this.playerPosition);
 
+        // 检测玩家移动并播放脚步声
+        this.updatePlayerFootsteps(deltaTime, movementInput.length() > 0);
+
         // Update enemy system
         this.enemies.setPlayerPosition(this.playerPosition);
         this.enemies.update(deltaTime);
@@ -633,6 +642,30 @@ export class Game {
         }
         if (loadingStatus) {
             loadingStatus.textContent = status;
+        }
+    }
+
+    /**
+     * Update player footsteps
+     */
+    private updatePlayerFootsteps(deltaTime: number, isMoving: boolean): void {
+        if (!isMoving || !this.character.getIsGrounded()) {
+            return;
+        }
+
+        this.lastFootstepTime += deltaTime;
+
+        // 根据移动速度调整步伐间隔
+        let interval = this.footstepInterval;
+        if (this.character.getIsSprinting()) {
+            interval = 0.3; // 跑步时步伐更快
+        } else if (this.character.getIsCrouching()) {
+            interval = 0.6; // 蹲伏时步伐更慢
+        }
+
+        if (this.lastFootstepTime >= interval) {
+            this.sound.play('player_footstep');
+            this.lastFootstepTime = 0;
         }
     }
 

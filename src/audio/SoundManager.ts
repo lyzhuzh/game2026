@@ -8,9 +8,9 @@ export type SoundType =
     | 'pistol_shot' | 'rifle_shot' | 'shotgun_shot' | 'smg_shot' | 'sniper_shot'
     | 'reload_start' | 'reload_end' | 'weapon_switch'
     // Player sounds
-    | 'player_hurt' | 'player_death' | 'player_respawn'
+    | 'player_hurt' | 'player_death' | 'player_respawn' | 'player_footstep'
     // Enemy sounds
-    | 'enemy_hurt' | 'enemy_death'
+    | 'enemy_hurt' | 'enemy_death' | 'enemy_footstep'
     // Item sounds
     | 'item_pickup'
     // UI sounds
@@ -98,6 +98,9 @@ export class SoundManager {
             case 'player_respawn':
                 this.playPlayerRespawn();
                 break;
+            case 'player_footstep':
+                this.playPlayerFootstep();
+                break;
 
             // Enemy sounds
             case 'enemy_hurt':
@@ -105,6 +108,9 @@ export class SoundManager {
                 break;
             case 'enemy_death':
                 this.playEnemyDeath();
+                break;
+            case 'enemy_footstep':
+                this.playEnemyFootstep();
                 break;
 
             // Item sounds
@@ -145,26 +151,43 @@ export class SoundManager {
         if (!this.audioContext || !this.masterGain) return;
 
         const now = this.audioContext.currentTime;
+
+        // 主要枪声 - 使用噪声
+        const noiseBuffer = this.createNoiseBuffer(0.15);
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const noiseFilter = this.audioContext.createBiquadFilter();
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.setValueAtTime(2000, now);
+        noiseFilter.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+
+        const noiseGain = this.audioContext.createGain();
+        noiseGain.gain.setValueAtTime(0.5, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+        // 低频冲击
         const osc = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.1);
 
-        // Short, punchy sound
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+        const oscGain = this.audioContext.createGain();
+        oscGain.gain.setValueAtTime(0.4, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1000, now);
+        // 连接噪声
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.masterGain);
 
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        // 连接低频
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
 
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.masterGain);
-
+        noise.start(now);
         osc.start(now);
+        noise.stop(now + 0.15);
         osc.stop(now + 0.1);
     }
 
@@ -172,26 +195,42 @@ export class SoundManager {
         if (!this.audioContext || !this.masterGain) return;
 
         const now = this.audioContext.currentTime;
-        const osc = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
+
+        // 更有力的枪声
+        const noiseBuffer = this.createNoiseBuffer(0.12);
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = noiseBuffer;
+
         const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1500, now);
+        filter.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+        filter.Q.value = 2;
 
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.45, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+        // 低频冲击
+        const osc = this.audioContext.createOscillator();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, now);
-        filter.frequency.exponentialRampToValueAtTime(500, now + 0.08);
+        const oscGain = this.audioContext.createGain();
+        oscGain.gain.setValueAtTime(0.35, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
 
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-
-        osc.connect(filter);
+        noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.masterGain);
 
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        noise.start(now);
         osc.start(now);
+        noise.stop(now + 0.12);
         osc.stop(now + 0.08);
     }
 
@@ -200,56 +239,87 @@ export class SoundManager {
 
         const now = this.audioContext.currentTime;
 
-        // Multiple oscillators for shotgun blast
-        for (let i = 0; i < 5; i++) {
-            const osc = this.audioContext.createOscillator();
-            const gain = this.audioContext.createGain();
+        // 多层噪声形成爆炸感
+        for (let i = 0; i < 6; i++) {
+            const noiseBuffer = this.createNoiseBuffer(0.25);
+            const noise = this.audioContext.createBufferSource();
+            noise.buffer = noiseBuffer;
+
             const filter = this.audioContext.createBiquadFilter();
-
-            const offset = Math.random() * 0.02;
-            osc.type = i % 2 === 0 ? 'square' : 'sawtooth';
-            osc.frequency.setValueAtTime(100 + Math.random() * 50, now + offset);
-            osc.frequency.exponentialRampToValueAtTime(20, now + offset + 0.2);
-
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1500, now);
-            filter.frequency.exponentialRampToValueAtTime(200, now + 0.2);
+            const baseFreq = 800 + Math.random() * 400;
+            filter.frequency.setValueAtTime(baseFreq, now);
+            filter.frequency.exponentialRampToValueAtTime(100, now + 0.25);
 
-            gain.gain.setValueAtTime(0.2, now + offset);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.2);
+            const gain = this.audioContext.createGain();
+            gain.gain.setValueAtTime(0.2 + Math.random() * 0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
 
-            osc.connect(filter);
+            noise.connect(filter);
             filter.connect(gain);
             gain.connect(this.masterGain);
 
-            osc.start(now + offset);
-            osc.stop(now + offset + 0.2);
+            const offset = Math.random() * 0.01;
+            noise.start(now + offset);
+            noise.stop(now + offset + 0.25);
         }
+
+        // 强烈低频冲击
+        const osc = this.audioContext.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+
+        const oscGain = this.audioContext.createGain();
+        oscGain.gain.setValueAtTime(0.5, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
     }
 
     private playSMGShot(): void {
         if (!this.audioContext || !this.masterGain) return;
 
         const now = this.audioContext.currentTime;
-        const osc = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
 
+        // 快速、高频枪声
+        const noiseBuffer = this.createNoiseBuffer(0.06);
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = noiseBuffer;
+
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(1200, now);
+        filter.frequency.exponentialRampToValueAtTime(400, now + 0.06);
+
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+
+        // 轻微低频
+        const osc = this.audioContext.createOscillator();
         osc.type = 'square';
         osc.frequency.setValueAtTime(180, now);
         osc.frequency.exponentialRampToValueAtTime(60, now + 0.05);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1500, now);
+        const oscGain = this.audioContext.createGain();
+        oscGain.gain.setValueAtTime(0.15, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
 
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-
-        osc.connect(filter);
+        noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.masterGain);
 
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        noise.start(now);
         osc.start(now);
+        noise.stop(now + 0.06);
         osc.stop(now + 0.05);
     }
 
@@ -257,27 +327,43 @@ export class SoundManager {
         if (!this.audioContext || !this.masterGain) return;
 
         const now = this.audioContext.currentTime;
-        const osc = this.audioContext.createOscillator();
-        const gain = this.audioContext.createGain();
+
+        // 长响尾音
+        const noiseBuffer = this.createNoiseBuffer(0.8);
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = noiseBuffer;
+
         const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(2500, now);
+        filter.frequency.exponentialRampToValueAtTime(150, now + 0.8);
+        filter.Q.value = 3;
 
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+        // 强烈低频
+        const osc = this.audioContext.createOscillator();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(80, now);
-        osc.frequency.exponentialRampToValueAtTime(20, now + 0.5);
+        osc.frequency.setValueAtTime(60, now);
+        osc.frequency.exponentialRampToValueAtTime(15, now + 0.6);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(3000, now);
-        filter.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+        const oscGain = this.audioContext.createGain();
+        oscGain.gain.setValueAtTime(0.5, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
 
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-
-        osc.connect(filter);
+        noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.masterGain);
 
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        noise.start(now);
         osc.start(now);
-        osc.stop(now + 0.5);
+        noise.stop(now + 0.8);
+        osc.stop(now + 0.6);
     }
 
     private playReloadStart(): void {
@@ -512,5 +598,113 @@ export class SoundManager {
             osc.start(now + i * 0.2);
             osc.stop(now + i * 0.2 + 0.3);
         }
+    }
+
+    // ==================== Footstep Sounds ====================
+
+    private playPlayerFootstep(): void {
+        if (!this.audioContext || !this.masterGain) return;
+
+        const now = this.audioContext.currentTime;
+
+        // 使用噪声模拟脚步声
+        const bufferSize = this.audioContext.sampleRate * 0.1; // 0.1秒
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // 生成白噪声
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = buffer;
+
+        // 带通滤波器模拟脚步频率
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(400, now);
+        filter.Q.value = 1;
+
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+
+        noise.start(now);
+        noise.stop(now + 0.1);
+    }
+
+    private playEnemyFootstep(): void {
+        if (!this.audioContext || !this.masterGain) return;
+
+        const now = this.audioContext.currentTime;
+
+        // 敌人脚步声更低沉
+        const bufferSize = this.audioContext.sampleRate * 0.08;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.audioContext.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(250, now);
+        filter.Q.value = 2;
+
+        const gain = this.audioContext.createGain();
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+
+        noise.start(now);
+        noise.stop(now + 0.08);
+    }
+
+    // ==================== Improved Gun Sounds ====================
+
+    private createNoiseBuffer(duration: number): AudioBuffer {
+        const bufferSize = this.audioContext!.sampleRate * duration;
+        const buffer = this.audioContext!.createBuffer(1, bufferSize, this.audioContext!.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        return buffer;
+    }
+
+    private createEcho(delay: number, decay: number): AudioNode {
+        if (!this.audioContext || !this.masterGain) {
+            throw new Error('AudioContext not initialized');
+        }
+
+        const now = this.audioContext.currentTime;
+        const delayNode = this.audioContext.createDelay(delay);
+        const feedback = this.audioContext.createGain();
+        const filter = this.audioContext.createBiquadFilter();
+
+        delayNode.delayTime.value = delay;
+        feedback.gain.value = decay;
+        filter.type = 'lowpass';
+        filter.frequency.value = 1000;
+
+        delayNode.connect(feedback);
+        feedback.connect(filter);
+        filter.connect(delayNode);
+
+        return delayNode;
     }
 }

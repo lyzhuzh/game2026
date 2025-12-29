@@ -10,6 +10,7 @@ import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
 import { GAME_ASSETS } from '../assets/AssetConfig';
 import { Time } from '../core/Time';
+import { SoundManager } from '../audio/SoundManager';
 
 export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
 export type EnemyType = 'grunt' | 'soldier' | 'heavy' | 'sniper';
@@ -131,6 +132,11 @@ export class Enemy {
     private walkCycleTime: number = 0;
     private modelRoot: THREE.Group | null = null;
 
+    // Footstep audio
+    private footstepTimer: number = 0;
+    private footstepInterval: number = 0.5;
+    private soundManager: SoundManager;
+
     constructor(
         type: EnemyType,
         position: THREE.Vector3,
@@ -141,6 +147,7 @@ export class Enemy {
         this.stats = { ...ENEMY_CONFIGS[type] };
         this.health = this.stats.maxHealth;
         this.assetManager = AssetManager.getInstance();
+        this.soundManager = SoundManager.getInstance();
 
         // Create mesh group (will contain model or placeholder)
         this.mesh = new THREE.Group();
@@ -724,6 +731,13 @@ export class Enemy {
         // Sync physics body to match (keep Y at 1 to stay above ground)
         this.physicsBody.body.position.set(this.mesh.position.x, 1, this.mesh.position.z);
         this.physicsBody.body.velocity.set(0, 0, 0); // Clear velocity since we're moving manually
+
+        // 更新脚步声计时器
+        this.footstepTimer += deltaTime;
+        if (this.footstepTimer >= this.footstepInterval) {
+            this.soundManager.play('enemy_footstep');
+            this.footstepTimer = 0;
+        }
     }
 
     /**
