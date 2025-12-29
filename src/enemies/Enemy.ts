@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -737,7 +738,7 @@ export class Enemy {
 
         for (const body of allBodies) {
             // Skip self and non-static bodies
-            if (body === this.physicsBody.body || body.type !== (CANNON as any).Body.STATIC) {
+            if (body === this.physicsBody.body || body.type !== CANNON.Body.STATIC) {
                 continue;
             }
 
