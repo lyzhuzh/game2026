@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { GameLoop } from './GameLoop';
 import { Time } from './Time';
 import { GAME_CONFIG } from '../constants/GameConstants';
