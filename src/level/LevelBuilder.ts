@@ -702,7 +702,7 @@ export class LevelBuilder {
 
             if (model) {
                 const obstacle = this.deepCloneGltf(model);
-                const pos = this.getRandomPosition(8); // Keep away from center spawn
+                const pos = this.getRandomPosition(20); // 远离中心出生点，避免阻挡玩家
 
                 // 先应用缩放
                 obstacle.updateMatrixWorld(true);
