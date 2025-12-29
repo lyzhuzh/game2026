@@ -446,7 +446,7 @@ export class Game {
         this.fpsCamera.setPosition(this.playerPosition);
 
         // 检测玩家移动并播放脚步声
-        this.updatePlayerFootsteps(deltaTime, movementInput.lengthSq() > 0);
+        this.updatePlayerFootsteps(deltaTime, movementInput.x !== 0 || movementInput.y !== 0);
 
         // Update enemy system
         this.enemies.setPlayerPosition(this.playerPosition);
