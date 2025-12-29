@@ -693,7 +693,7 @@ export class Enemy {
     }
 
     /**
-     * Move enemy - set velocity for physics body
+     * Move enemy - with collision detection
      */
     private move(direction: THREE.Vector3, speed: number): void {
         // Get delta time from Time system
@@ -701,18 +701,97 @@ export class Enemy {
 
         // Calculate movement distance (only on XZ plane)
         const distance = speed * deltaTime;
-        const movement = new THREE.Vector3(
-            direction.x * distance,
-            0,  // Don't change Y
-            direction.z * distance
-        );
 
-        // Update mesh position directly
-        this.mesh.position.add(movement);
+        // 尝试移动，分别检查 X 和 Z 方向的碰撞
+        const newPos = this.mesh.position.clone();
+        const originalPos = this.mesh.position.clone();
+
+        // 尝试 X 方向移动
+        newPos.x += direction.x * distance;
+        if (!this.checkCollision(newPos)) {
+            this.mesh.position.x = newPos.x;
+        } else {
+            newPos.x = originalPos.x;
+        }
+
+        // 尝试 Z 方向移动
+        newPos.z += direction.z * distance;
+        if (!this.checkCollision(newPos)) {
+            this.mesh.position.z = newPos.z;
+        }
 
         // Sync physics body to match (keep Y at 1 to stay above ground)
         this.physicsBody.body.position.set(this.mesh.position.x, 1, this.mesh.position.z);
         this.physicsBody.body.velocity.set(0, 0, 0); // Clear velocity since we're moving manually
+    }
+
+    /**
+     * Check if position collides with static bodies (walls/obstacles)
+     */
+    private checkCollision(position: THREE.Vector3): boolean {
+        if (!this.physicsBody.body.world) return false;
+
+        const allBodies = this.physicsBody.body.world.bodies;
+        const enemyRadius = 0.5; // 敌人碰撞半径
+        const enemyHeight = 2;
+
+        for (const body of allBodies) {
+            // Skip self and non-static bodies
+            if (body === this.physicsBody.body || body.type !== (CANNON as any).Body.STATIC) {
+                continue;
+            }
+
+            // Check if body has Box shape (walls/obstacles)
+            const shape = body.shapes[0];
+            if (shape instanceof CANNON.Box) {
+                if (this.checkBoxCollision(position, body, shape, enemyRadius, enemyHeight)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check collision with a box shape
+     */
+    private checkBoxCollision(
+        enemyPos: THREE.Vector3,
+        wallBody: any,
+        boxShape: CANNON.Box,
+        enemyRadius: number,
+        enemyHeight: number
+    ): boolean {
+        const halfExtents = boxShape.halfExtents;
+
+        // Transform enemy position to box local space
+        const localEnemyPos = new CANNON.Vec3(
+            enemyPos.x - wallBody.position.x,
+            enemyPos.y - wallBody.position.y,
+            enemyPos.z - wallBody.position.z
+        );
+
+        const invQuat = wallBody.quaternion.inverse();
+        invQuat.vmult(localEnemyPos, localEnemyPos);
+
+        // Check AABB collision in local space
+        const enemyHalfWidth = enemyRadius;
+        const enemyHalfHeight = enemyHeight / 2;
+
+        const xMin = -halfExtents.x - enemyHalfWidth;
+        const xMax = halfExtents.x + enemyHalfWidth;
+        const yMin = -halfExtents.y;
+        const yMax = halfExtents.y + enemyHeight;
+        const zMin = -halfExtents.z - enemyHalfWidth;
+        const zMax = halfExtents.z + enemyHalfWidth;
+
+        const overlaps =
+            localEnemyPos.x >= xMin && localEnemyPos.x <= xMax &&
+            localEnemyPos.y >= yMin && localEnemyPos.y <= yMax &&
+            localEnemyPos.z >= zMin && localEnemyPos.z <= zMax;
+
+        return overlaps;
     }
 
     /**
