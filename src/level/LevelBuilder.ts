@@ -702,7 +702,7 @@ export class LevelBuilder {
 
             if (model) {
                 const obstacle = this.deepCloneGltf(model);
-                const pos = this.getRandomPosition(20); // 远离中心出生点，避免阻挡玩家
+                const pos = this.getRandomPosition(50); // 远离中心出生点，避免阻挡玩家
 
                 // 先应用缩放
                 obstacle.updateMatrixWorld(true);
@@ -1088,7 +1088,7 @@ export class LevelBuilder {
         const positions: Array<{ x: number, y: number, z: number, rotation?: number }> = [];
 
         for (let i = 0; i < count; i++) {
-            const pos = this.getRandomPosition(35); // 远离中心出生点和分隔墙
+            const pos = this.getRandomPosition(50); // 远离中心出生点和分隔墙
             const height = 1 + Math.random() * 3;
             positions.push({
                 x: pos.x,
@@ -1114,13 +1114,13 @@ export class LevelBuilder {
         };
 
         // 分隔墙通道区域（玩家出生点附近的通道）
-        // 南北向墙在 X=-2，东西向墙在 Z=-15，玩家出生点在 (0,0)
+        // 南北向墙在 X=-2，东西向墙在 Z=-15，玩家出生点在 (0, HEIGHT, 5)
         // 需要排除较大的中心区域，确保玩家出生点附近没有障碍物
         const channelZone = {
-            xMin: -30,  // 扩大排除区域，远离南北向墙 (X=-2)
-            xMax: 30,
-            zMin: -25,  // 扩大排除区域，远离东西向墙 (Z=-15)
-            zMax: 25
+            xMin: -40,  // 扩大排除区域，确保远离玩家
+            xMax: 40,
+            zMin: -35,  // 扩大排除区域，确保远离玩家（玩家在 Z=5）
+            zMax: 35
         };
 
         let attempts = 0;

@@ -152,13 +152,13 @@ export class EnemyManager {
     private getRandomSpawnPosition(center: THREE.Vector3, radius: number): THREE.Vector3 {
         // 中心安全区域（玩家出生点附近，与 LevelBuilder 中的排除区域一致）
         const safeZone = {
-            xMin: -30,
-            xMax: 30,
-            zMin: -25,
-            zMax: 25
+            xMin: -40,
+            xMax: 40,
+            zMin: -35,
+            zMax: 35
         };
 
-        const minDistance = 40; // 最小距离，远离中心安全区域
+        const minDistance = 50; // 最小距离，远离中心安全区域
         let position: THREE.Vector3;
         let attempts = 0;
 
