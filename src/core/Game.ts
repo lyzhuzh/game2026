@@ -114,7 +114,11 @@ export class Game {
         // Set player callbacks for sound effects
         this.player.setOnHurt(() => this.sound.play('player_hurt'));
         this.player.setOnDeath(() => this.sound.play('player_death'));
-        this.player.setOnRespawn(() => this.sound.play('player_respawn'));
+        this.player.setOnRespawn(() => {
+            // 重置玩家位置到出生点
+            this.respawnPlayer();
+            this.sound.play('player_respawn');
+        });
 
         // Initialize UI system
         this.ui = new UIManager();
@@ -541,6 +545,24 @@ export class Game {
         if (loadingScreen) {
             loadingScreen.classList.add('hidden');
         }
+    }
+
+    /**
+     * Respawn player at spawn point
+     */
+    private respawnPlayer(): void {
+        // 重置角色控制器位置到出生点
+        const spawnPos = new THREE.Vector3(0, GAME_CONFIG.PLAYER.HEIGHT, 0);
+        this.character.setPosition(spawnPos);
+
+        // 重置相机朝向（面向 Z 轴负方向，yaw=0, pitch=0）
+        this.fpsCamera.setRotation(0, 0);
+
+        // 更新玩家位置变量
+        this.playerPosition.copy(this.character.getEyePosition());
+        this.fpsCamera.setPosition(this.playerPosition);
+
+        console.log('[Game] Player respawned at spawn point');
     }
 
     /**

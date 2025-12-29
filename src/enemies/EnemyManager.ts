@@ -147,16 +147,39 @@ export class EnemyManager {
 
     /**
      * Get random spawn position
+     * Excludes center safe zone around spawn point
      */
     private getRandomSpawnPosition(center: THREE.Vector3, radius: number): THREE.Vector3 {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 10 + Math.random() * (radius - 10); // Min 10 units from player
+        // 中心安全区域（玩家出生点附近，与 LevelBuilder 中的排除区域一致）
+        const safeZone = {
+            xMin: -30,
+            xMax: 30,
+            zMin: -25,
+            zMax: 25
+        };
 
-        return new THREE.Vector3(
-            center.x + Math.cos(angle) * distance,
-            0, // Ground level
-            center.z + Math.sin(angle) * distance
+        const minDistance = 40; // 最小距离，远离中心安全区域
+        let position: THREE.Vector3;
+        let attempts = 0;
+
+        do {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = minDistance + Math.random() * (radius - minDistance);
+
+            position = new THREE.Vector3(
+                center.x + Math.cos(angle) * distance,
+                0, // Ground level
+                center.z + Math.sin(angle) * distance
+            );
+
+            attempts++;
+        } while (
+            attempts < 100 &&
+            position.x >= safeZone.xMin && position.x <= safeZone.xMax &&
+            position.z >= safeZone.zMin && position.z <= safeZone.zMax
         );
+
+        return position;
     }
 
     /**
