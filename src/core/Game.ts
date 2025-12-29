@@ -472,7 +472,8 @@ export class Game {
         // Update HUD
         const playerState = this.player.getState();
         const waveNumber = this.enemies.getWaveNumber();
-        this.ui.update(playerState, waveNumber);
+        const enemyCount = this.enemies.getLivingEnemyCount();
+        this.ui.update(playerState, waveNumber, enemyCount);
         this.updateWeaponHUD();
     }
 

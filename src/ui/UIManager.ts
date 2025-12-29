@@ -40,6 +40,7 @@ export class UIManager {
             'score-display',
             'kills-display',
             'wave-display',
+            'enemies-display',
             'ammo-count',
             'weapon-name',
             'reserve-ammo',
@@ -60,12 +61,15 @@ export class UIManager {
     /**
      * Update all HUD elements
      */
-    update(playerState: PlayerState, waveNumber: number): void {
+    update(playerState: PlayerState, waveNumber: number, enemyCount?: number): void {
         this.updateHealthBar(playerState.health, playerState.maxHealth);
         this.updateArmorBar(playerState.armor, playerState.maxArmor);
         this.updateScore(playerState.score);
         this.updateKills(playerState.kills);
         this.updateWave(waveNumber);
+        if (enemyCount !== undefined) {
+            this.updateEnemies(enemyCount);
+        }
     }
 
     /**
@@ -138,6 +142,16 @@ export class UIManager {
         const element = this.elements.get('wave-display');
         if (element) {
             element.textContent = `波次: ${wave}`;
+        }
+    }
+
+    /**
+     * Update enemies display
+     */
+    updateEnemies(count: number): void {
+        const element = this.elements.get('enemies-display');
+        if (element) {
+            element.textContent = `敌人: ${count}`;
         }
     }
 
