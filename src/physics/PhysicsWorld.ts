@@ -132,25 +132,25 @@ export class PhysicsWorld {
      * @returns Raycast result or null
      */
     raycast(from: CANNON.Vec3, to: CANNON.Vec3): CANNON.RaycastResult | null {
-        // Calculate direction and distance
+        // Calculate direction
         const direction = to.vsub(from);
         const maxDistance = direction.length();
+        direction.normalize();
 
         // Create ray and result
         const ray = new CANNON.Ray(from, to);
         const result = new CANNON.RaycastResult();
         result.reset();
 
-        // Mode 1: closest hit
+        // Mode: closest hit
         ray.mode = CANNON.Ray.CLOSEST;
         ray.skipBackfaces = true;
 
         // Perform raycast against the world
         ray.intersectWorld(this.world, result);
 
-        // Check if we hit something valid
+        // Check if we hit something
         if (result.hasHit) {
-            // Filter out player body and ground
             const body = result.body;
 
             // Skip player body (kinematic with mass 0)
@@ -164,9 +164,19 @@ export class PhysicsWorld {
                 return null;
             }
 
-            // Only hit box shapes (enemies have box colliders)
-            if (!body.shapes.some((s: any) => s instanceof CANNON.Box)) {
-                return null;
+            // Calculate hit point from ray origin and distance
+            const hitPoint = from.vadd(direction.scale(result.distance));
+
+            // Set hit point properties (compatibility with old code)
+            result.hitPoint = hitPoint;
+            result.hitPointWorld = hitPoint;
+
+            // Set normal (use hitNormalWorld if available, otherwise use hitNormal)
+            if (result.hasHit && result.hitNormalWorld) {
+                result.hitNormal = result.hitNormalWorld;
+            } else if (!result.hitNormal) {
+                // Default normal facing back along ray direction
+                result.hitNormal = direction.negate(result.hitNormal);
             }
 
             return result;

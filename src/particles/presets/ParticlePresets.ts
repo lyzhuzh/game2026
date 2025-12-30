@@ -75,14 +75,14 @@ export const PARTICLE_PRESETS: Record<ParticleType, ParticlePreset> = {
     },
 
     /**
-     * Muzzle flash - brief bright flash
+     * Muzzle flash - brief bright flash (enhanced)
      */
     muzzle_flash: {
-        count: 5,
-        lifetime: { min: 0.05, max: 0.1 },
-        size: { min: 0.1, max: 0.2 },
-        color: 0xffaa00,
-        velocity: { min: 1, max: 3 },
+        count: 12, // More particles for fuller effect
+        lifetime: { min: 0.05, max: 0.15 }, // Slightly longer
+        size: { min: 0.15, max: 0.35 }, // Larger, more visible
+        color: 0xffdd44, // Brighter yellow-orange
+        velocity: { min: 2, max: 5 }, // More spread
         gravity: 0,
         fadeOut: true
     },

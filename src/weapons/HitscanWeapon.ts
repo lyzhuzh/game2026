@@ -113,39 +113,64 @@ export class HitscanWeapon extends Weapon {
 
     /**
      * Create visual tracer effect
+     * Enhanced with brighter, more visible tracer
      */
     createTracer(origin: THREE.Vector3, direction: THREE.Vector3, distance: number): void {
-        // Create tracer geometry
-        const tracerLength = Math.min(distance, 5); // Tracer extends 5m or to hit point
+        // Create tracer geometry with better visibility
+        const tracerLength = Math.min(distance, 10); // Extended tracer for better visibility
         const endPosition = origin.clone().addScaledVector(direction, tracerLength);
 
-        // Create line geometry
+        // Create line geometry with thickness simulation (multiple lines)
         const points = [origin, endPosition];
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-        // Create line material - use white instead of yellow
+        // Brighter, more visible tracer material
         const material = new THREE.LineBasicMaterial({
-            color: 0xffffff,
+            color: 0xffff88, // Bright yellow-white
             transparent: true,
-            opacity: 0.3
+            opacity: 0.8,
+            linewidth: 2 // Note: linewidth only works in some browsers
         });
 
         const line = new THREE.Line(geometry, material);
         this.scene.add(line);
 
-        // Fade out and remove - faster fade
-        let opacity = 0.3;
-        const fadeInterval = setInterval(() => {
-            opacity -= 0.15;
-            if (opacity <= 0) {
-                clearInterval(fadeInterval);
+        // Add a second line for "glow" effect
+        const glowMaterial = new THREE.LineBasicMaterial({
+            color: 0xffaa00,
+            transparent: true,
+            opacity: 0.4
+        });
+        const glowLine = new THREE.Line(geometry.clone(), glowMaterial);
+        glowLine.position.x += 0.02; // Slight offset for glow
+        glowLine.position.z += 0.02;
+        this.scene.add(glowLine);
+
+        // Fast fade out effect
+        let opacity = 0.8;
+        let frameCount = 0;
+        const maxFrames = 8; // About 240ms at 30fps
+
+        const fadeTracer = () => {
+            frameCount++;
+            opacity -= 0.1;
+
+            if (frameCount >= maxFrames || opacity <= 0) {
+                // Remove tracers
                 this.scene.remove(line);
+                this.scene.remove(glowLine);
                 geometry.dispose();
                 material.dispose();
+                glowLine.geometry.dispose();
+                glowMaterial.dispose();
             } else {
                 material.opacity = opacity;
+                glowMaterial.opacity = opacity * 0.5;
+                requestAnimationFrame(fadeTracer);
             }
-        }, 30);
+        };
+
+        requestAnimationFrame(fadeTracer);
     }
 
     /**
@@ -153,8 +178,7 @@ export class HitscanWeapon extends Weapon {
      * DISABLED - Using particle system instead
      */
     createMuzzleFlash(_position: THREE.Vector3, _direction: THREE.Vector3): void {
-        // Muzzle flash disabled - yellow sprite was the issue
-        // Particle system will handle muzzle flash effects
+        // Muzzle flash disabled - particle system will handle it
         return;
     }
 }

@@ -111,28 +111,31 @@ export class ParticleSystem {
     }
 
     /**
-     * Muzzle flash effect (subtle particle burst, no screen flash)
+     * Muzzle flash effect (enhanced - brighter and more visible)
      */
     muzzleFlash(position: THREE.Vector3, direction: THREE.Vector3): void {
-        // Very subtle effect - just 1-2 tiny particles
-        const particleCount = 1 + Math.floor(Math.random() * 2);
+        // Enhanced effect - more particles, larger, more visible
+        const particleCount = 8 + Math.floor(Math.random() * 6); // 8-14 particles
 
         for (let i = 0; i < particleCount; i++) {
-            // Slight spread in fire direction
+            // Cone spread in fire direction
             const spreadDir = direction.clone();
-            spreadDir.x += (Math.random() - 0.5) * 0.1;
-            spreadDir.y += (Math.random() - 0.5) * 0.1;
-            spreadDir.z += (Math.random() - 0.5) * 0.1;
+            spreadDir.x += (Math.random() - 0.5) * 0.3; // More spread
+            spreadDir.y += (Math.random() - 0.5) * 0.3;
+            spreadDir.z += (Math.random() - 0.5) * 0.3;
             spreadDir.normalize();
+
+            // Add randomness to speed
+            const speed = 2 + Math.random() * 4;
 
             const config: ParticleConfig = {
                 type: 'muzzle_flash',
                 position: position.clone(),
                 count: 1,
-                color: 0xffcc88, // Lighter, softer orange
-                size: 0.3 + Math.random() * 0.2, // Tiny size (0.1 base * 0.3-0.5 = 0.03-0.05 world units)
-                lifetime: 0.01 + Math.random() * 0.01, // Very short lived
-                velocity: spreadDir.multiplyScalar(1 + Math.random()),
+                color: 0xffdd44, // Bright yellow-orange
+                size: 0.4 + Math.random() * 0.3, // Larger size (0.12-0.18 world units)
+                lifetime: 0.05 + Math.random() * 0.08, // Longer lived (50-130ms)
+                velocity: spreadDir.multiplyScalar(speed),
                 gravity: 0,
                 fadeOut: true
             };
