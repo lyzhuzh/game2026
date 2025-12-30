@@ -258,8 +258,7 @@ export class Game {
             onSwitch: (weaponType) => this.onWeaponSwitch(weaponType),
             projectileManager: this.projectiles,
             particleSystem: this.particles,
-            onFlamethrowerDamage: (origin, direction, range, damage) => this.onFlamethrowerDamage(origin, direction, range, damage),
-            onEnemyHitCheck: (origin, direction, maxDistance) => this.checkEnemyHit(origin, direction, maxDistance)
+            onFlamethrowerDamage: (origin, direction, range, damage) => this.onFlamethrowerDamage(origin, direction, range, damage)
         });
 
         this.setupEventListeners();
@@ -684,14 +683,6 @@ export class Game {
         this.particles.muzzleFlash(fireOrigin, fireDirection);
     }
 
-    /**
-     * Custom enemy hit detection for hitscan weapons
-     * Bypasses Cannon.js raycast which doesn't work with manually moved bodies
-     * Uses ray-to-sphere intersection detection via EnemyManager
-     */
-    private checkEnemyHit(origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number): { hit: boolean; position?: THREE.Vector3; distance?: number } | null {
-        return this.enemies.raycastEnemies(origin, direction, maxDistance);
-    }
 
     /**
      * Handle weapon hit (damage number + particles)

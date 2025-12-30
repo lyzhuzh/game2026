@@ -626,15 +626,28 @@ export class Enemy {
         // If patrol points are set, use them
         if (this.patrolPoints.length > 0) {
             const targetPoint = this.patrolPoints[this.currentPatrolIndex];
+            const currentPos = new THREE.Vector3(
+                this.physicsBody.body.position.x,
+                this.physicsBody.body.position.y,
+                this.physicsBody.body.position.z
+            );
             const direction = new THREE.Vector3()
-                .subVectors(targetPoint, this.mesh.position)
+                .subVectors(targetPoint, currentPos)
                 .normalize();
 
-            this.move(direction, this.stats.moveSpeed);
+            const distance = currentPos.distanceTo(targetPoint);
+
+            // Slow down when approaching target
+            let actualSpeed = this.stats.moveSpeed;
+            if (distance < 3) {
+                actualSpeed = this.stats.moveSpeed * (distance / 3);
+            }
+
+            this.move(direction, actualSpeed);
             this.faceTarget(targetPoint);
 
             // Check if reached patrol point
-            if (this.mesh.position.distanceTo(targetPoint) < 1) {
+            if (distance < 0.5) {
                 this.waitTime += deltaTime;
                 if (this.waitTime > 2) {
                     this.waitTime = 0;
@@ -649,7 +662,11 @@ export class Enemy {
 
         // Pick a new random target
         if (!this.randomPatrolTarget || this.randomPatrolTimer <= 0) {
-            const currentPos = this.mesh.position;
+            const currentPos = new THREE.Vector3(
+                this.physicsBody.body.position.x,
+                this.physicsBody.body.position.y,
+                this.physicsBody.body.position.z
+            );
             const randomAngle = Math.random() * Math.PI * 2;
             const randomDistance = 5 + Math.random() * 10; // 5-15 units away
 
@@ -662,15 +679,28 @@ export class Enemy {
         }
 
         // Move towards random target
+        const currentPos = new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y,
+            this.physicsBody.body.position.z
+        );
         const direction = new THREE.Vector3()
-            .subVectors(this.randomPatrolTarget, this.mesh.position)
+            .subVectors(this.randomPatrolTarget, currentPos)
             .normalize();
 
-        this.move(direction, this.stats.moveSpeed * 0.5); // Slower when patrolling
+        const distance = currentPos.distanceTo(this.randomPatrolTarget);
+
+        // Slow down when approaching target
+        let actualSpeed = this.stats.moveSpeed * 0.5;
+        if (distance < 3) {
+            actualSpeed = this.stats.moveSpeed * 0.5 * (distance / 3);
+        }
+
+        this.move(direction, actualSpeed);
         this.faceTarget(this.randomPatrolTarget);
 
         // Check if reached target
-        if (this.mesh.position.distanceTo(this.randomPatrolTarget) < 1) {
+        if (distance < 0.5) {
             this.randomPatrolTarget = null;
             this.randomPatrolTimer = 1 + Math.random() * 2; // Wait 1-3 seconds before moving again
         }
@@ -680,11 +710,24 @@ export class Enemy {
      * Chase state
      */
     private updateChase(deltaTime: number, playerPosition: THREE.Vector3): void {
+        const currentPos = new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y,
+            this.physicsBody.body.position.z
+        );
         const direction = new THREE.Vector3()
-            .subVectors(playerPosition, this.mesh.position)
+            .subVectors(playerPosition, currentPos)
             .normalize();
 
-        this.move(direction, this.stats.chaseSpeed);
+        const distance = currentPos.distanceTo(playerPosition);
+
+        // Slow down when approaching attack range
+        let actualSpeed = this.stats.chaseSpeed;
+        if (distance < this.stats.attackRange * 1.5) {
+            actualSpeed = this.stats.chaseSpeed * (distance / (this.stats.attackRange * 1.5));
+        }
+
+        this.move(direction, actualSpeed);
 
         // Face player
         this.faceTarget(playerPosition);
@@ -697,66 +740,30 @@ export class Enemy {
         // Face player
         this.faceTarget(playerPosition);
 
+        // Stop movement when attacking
+        this.physicsBody.body.velocity.set(0, 0, 0);
+
         // Check if can attack
         const time = performance.now() / 1000;
         if (time - this.lastAttackTime >= this.stats.attackCooldown) {
-            // console.log(`[Enemy] ${this.type} attacking player for ${this.stats.damage} damage`);
             this.attack(playerPosition);
             this.lastAttackTime = time;
         }
     }
 
     /**
-     * Move enemy - with collision detection
+     * Move enemy - using physics simulation
      */
     private move(direction: THREE.Vector3, speed: number): void {
-        // Get delta time from Time system
-        const deltaTime = Time.deltaTime;
-
-        // Calculate movement distance (only on XZ plane)
-        const distance = speed * deltaTime;
-
-        // 尝试移动，分别检查 X 和 Z 方向的碰撞
-        const newPos = this.mesh.position.clone();
-        const originalPos = this.mesh.position.clone();
-
-        // 尝试 X 方向移动
-        newPos.x += direction.x * distance;
-        if (!this.checkCollision(newPos)) {
-            this.mesh.position.x = newPos.x;
-        } else {
-            newPos.x = originalPos.x;
-        }
-
-        // 尝试 Z 方向移动
-        newPos.z += direction.z * distance;
-        if (!this.checkCollision(newPos)) {
-            this.mesh.position.z = newPos.z;
-        }
-
-        // Sync physics body to match (keep Y at 1 to stay above ground)
-        this.physicsBody.body.position.set(this.mesh.position.x, 1, this.mesh.position.z);
-        this.physicsBody.body.velocity.set(0, 0, 0); // Clear velocity since we're moving manually
-
-        // Update AABB for raycast detection - must manually update after moving body
-        // Get the box shape
-        const shape = this.physicsBody.body.shapes[0] as CANNON.Box;
-        if (shape) {
-            // Calculate AABB from position and box halfExtents
-            const halfExtents = shape.halfExtents;
-            this.physicsBody.body.aabb.lowerBound.set(
-                this.physicsBody.body.position.x - halfExtents.x,
-                this.physicsBody.body.position.y - halfExtents.y,
-                this.physicsBody.body.position.z - halfExtents.z
-            );
-            this.physicsBody.body.aabb.upperBound.set(
-                this.physicsBody.body.position.x + halfExtents.x,
-                this.physicsBody.body.position.y + halfExtents.y,
-                this.physicsBody.body.position.z + halfExtents.z
-            );
-        }
+        // Set velocity to let physics engine handle movement
+        this.physicsBody.body.velocity.set(
+            direction.x * speed,
+            0, // Keep horizontal movement
+            direction.z * speed
+        );
 
         // 更新脚步声计时器
+        const deltaTime = Time.deltaTime;
         this.footstepTimer += deltaTime;
         if (this.footstepTimer >= this.footstepInterval) {
             this.soundManager.play('enemy_footstep');
@@ -764,74 +771,6 @@ export class Enemy {
         }
     }
 
-    /**
-     * Check if position collides with static bodies (walls/obstacles)
-     */
-    private checkCollision(position: THREE.Vector3): boolean {
-        if (!this.physicsBody.body.world) return false;
-
-        const allBodies = this.physicsBody.body.world.bodies;
-        const enemyRadius = 0.5; // 敌人碰撞半径
-        const enemyHeight = 2;
-
-        for (const body of allBodies) {
-            // Skip self and non-static bodies
-            if (body === this.physicsBody.body || body.type !== CANNON.Body.STATIC) {
-                continue;
-            }
-
-            // Check if body has Box shape (walls/obstacles)
-            const shape = body.shapes[0];
-            if (shape instanceof CANNON.Box) {
-                if (this.checkBoxCollision(position, body, shape, enemyRadius, enemyHeight)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Check collision with a box shape
-     */
-    private checkBoxCollision(
-        enemyPos: THREE.Vector3,
-        wallBody: any,
-        boxShape: CANNON.Box,
-        enemyRadius: number,
-        enemyHeight: number
-    ): boolean {
-        const halfExtents = boxShape.halfExtents;
-
-        // Transform enemy position to box local space
-        const localEnemyPos = new CANNON.Vec3(
-            enemyPos.x - wallBody.position.x,
-            enemyPos.y - wallBody.position.y,
-            enemyPos.z - wallBody.position.z
-        );
-
-        const invQuat = wallBody.quaternion.inverse();
-        invQuat.vmult(localEnemyPos, localEnemyPos);
-
-        // Check AABB collision in local space
-        const enemyHalfWidth = enemyRadius;
-        const enemyHalfHeight = enemyHeight / 2;
-
-        const xMin = -halfExtents.x - enemyHalfWidth;
-        const xMax = halfExtents.x + enemyHalfWidth;
-        const yMin = -halfExtents.y;
-        const yMax = halfExtents.y + enemyHeight;
-        const zMin = -halfExtents.z - enemyHalfWidth;
-        const zMax = halfExtents.z + enemyHalfWidth;
-
-        const overlaps =
-            localEnemyPos.x >= xMin && localEnemyPos.x <= xMax &&
-            localEnemyPos.y >= yMin && localEnemyPos.y <= yMax &&
-            localEnemyPos.z >= zMin && localEnemyPos.z <= zMax;
-
-        return overlaps;
-    }
 
     /**
      * Face target

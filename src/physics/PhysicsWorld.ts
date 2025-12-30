@@ -166,17 +166,11 @@ export class PhysicsWorld {
             // Calculate hit point from ray origin and distance
             const hitPoint = from.vadd(direction.scale(result.distance));
 
-            // Set hit point properties (compatibility with old code)
-            result.hitPoint = hitPoint;
-            result.hitPointWorld = hitPoint;
-
-            // Set normal (use hitNormalWorld if available, otherwise use hitNormal)
-            if (result.hasHit && result.hitNormalWorld) {
-                result.hitNormal = result.hitNormalWorld;
-            } else if (!result.hitNormal) {
-                // Default normal facing back along ray direction
-                result.hitNormal = direction.negate(result.hitNormal);
-            }
+            // Cannon-es RaycastResult already has hitNormalWorld set by the raycast
+            // We just need to ensure hitPointWorld is set
+            (result as any).hitPointWorld = hitPoint;
+            (result as any).hitPoint = hitPoint;  // For compatibility
+            (result as any).hitNormal = result.hitNormalWorld;  // For compatibility
 
             return result;
         }

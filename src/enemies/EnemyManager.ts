@@ -132,25 +132,6 @@ export class EnemyManager {
     }
 
     /**
-     * Start a wave
-     */
-    startWave(waveNumber: number): void {
-        this.waveNumber = waveNumber;
-        this.enemiesRemaining = 0;
-        this.waveInProgress = true;
-
-        // Calculate enemy count based on wave number
-        const enemyCount = Math.min(5 + waveNumber * 2, this.maxConcurrentEnemies);
-
-        // Spawn enemies
-        for (let i = 0; i < enemyCount; i++) {
-            const enemyType = this.getRandomEnemyType(waveNumber);
-            const position = this.getRandomSpawnPosition(this.playerPosition, this.spawnRadius);
-            this.spawnEnemy({ type: enemyType, position });
-        }
-    }
-
-    /**
      * Spawn multiple enemies
      */
     spawnEnemies(configs: EnemySpawnConfig[]): void {
@@ -327,56 +308,6 @@ export class EnemyManager {
         }
     }
 
-    /**
-     * Raycast against all enemies to find hits
-     * Returns the closest enemy hit along the ray
-     * Uses ray-to-sphere intersection (bypasses Cannon.js raycast issues)
-     */
-    raycastEnemies(origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number): { hit: boolean; position?: THREE.Vector3; distance?: number } | null {
-        let closestHit: { position: THREE.Vector3; distance: number } | null = null;
-        let closestDistance = maxDistance;
-        const toEnemy = new THREE.Vector3();
-
-        // Enemy hitbox is approximately 1x2x0.5 units (width x height x depth)
-        const enemyRadius = 0.8;
-
-        for (const enemy of this.enemies) {
-            if (enemy.isEnemyDead()) continue;
-
-            const enemyPos = enemy.getPosition();
-
-            // Vector from ray origin to enemy
-            toEnemy.copy(enemyPos).sub(origin);
-
-            // Project onto ray direction
-            const projection = toEnemy.dot(direction);
-
-            // Check if enemy is in front of ray origin and within range
-            if (projection < 0 || projection > maxDistance) continue;
-
-            // Find closest point on ray to enemy
-            const closestPoint = origin.clone().addScaledVector(direction, projection);
-
-            // Distance from enemy to closest point on ray
-            const distanceToRay = enemyPos.distanceTo(closestPoint);
-
-            // Check if ray passes through enemy's bounding sphere
-            if (distanceToRay <= enemyRadius) {
-                // Hit! Calculate hit position (at enemy position for simplicity)
-                const hitDistance = projection;
-                if (hitDistance < closestDistance) {
-                    closestDistance = hitDistance;
-                    closestHit = {
-                        hit: true,
-                        position: enemyPos.clone(),
-                        distance: hitDistance
-                    };
-                }
-            }
-        }
-
-        return closestHit;
-    }
 
     /**
      * Damage enemy at position (raycast hit)

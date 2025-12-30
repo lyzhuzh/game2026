@@ -24,7 +24,6 @@ export interface WeaponManagerConfig {
     projectileManager?: ProjectileManager;
     particleSystem?: ParticleSystem;
     onFlamethrowerDamage?: (origin: THREE.Vector3, direction: THREE.Vector3, range: number, damage: number) => void;
-    onEnemyHitCheck?: (origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number) => { hit: boolean; position?: THREE.Vector3; distance?: number } | null;
 }
 
 export class WeaponManager {
@@ -39,7 +38,6 @@ export class WeaponManager {
     private projectileManager?: ProjectileManager;
     private particleSystem?: ParticleSystem;
     private onFlamethrowerDamage?: (origin: THREE.Vector3, direction: THREE.Vector3, range: number, damage: number) => void;
-    private onEnemyHitCheck?: (origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number) => { hit: boolean; position?: THREE.Vector3; distance?: number } | null;
 
     private weapons: Map<WeaponType, Weapon> = new Map();
     private currentWeapon: Weapon | null = null;
@@ -64,7 +62,6 @@ export class WeaponManager {
         this.projectileManager = config.projectileManager;
         this.particleSystem = config.particleSystem;
         this.onFlamethrowerDamage = config.onFlamethrowerDamage;
-        this.onEnemyHitCheck = config.onEnemyHitCheck;
 
         // Initialize default weapons
         this.initializeWeapons();
@@ -84,10 +81,6 @@ export class WeaponManager {
         const hitscanTypes: WeaponType[] = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper'];
         for (const type of hitscanTypes) {
             const weapon = new HitscanWeapon(type, this.world, this.scene);
-            // Set custom enemy hit detection callback if provided
-            if (this.onEnemyHitCheck) {
-                weapon.setEnemyHitCheck(this.onEnemyHitCheck);
-            }
             this.weapons.set(type, weapon);
         }
 
