@@ -107,6 +107,22 @@ export class FirstPersonCamera {
     }
 
     /**
+     * Set yaw angle (public method for external control)
+     */
+    setYaw(angle: number): void {
+        this.yaw = angle;
+        this.updateCameraRotation();
+    }
+
+    /**
+     * Set pitch angle (public method for external control)
+     */
+    setPitch(angle: number): void {
+        this.pitch = Math.max(-this.maxPitchAngle, Math.min(this.maxPitchAngle, angle));
+        this.updateCameraRotation();
+    }
+
+    /**
      * Set camera position
      */
     setPosition(position: THREE.Vector3): void {

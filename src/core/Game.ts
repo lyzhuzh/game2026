@@ -328,6 +328,23 @@ export class Game {
         // Start first wave of enemies
         this.enemies.startWave(1);
 
+        // Face the first enemy after a short delay
+        setTimeout(() => {
+            const nearestEnemy = this.enemies.getNearestEnemy(this.playerPosition, 1000);
+            if (nearestEnemy) {
+                const enemyPos = nearestEnemy.getPosition();
+                const direction = new THREE.Vector3()
+                    .subVectors(enemyPos, this.playerPosition)
+                    .normalize();
+
+                // Calculate yaw angle to face enemy
+                const yaw = Math.atan2(direction.x, direction.z);
+                this.fpsCamera.setYaw(yaw);
+
+                console.log('[Game] Facing first enemy at', enemyPos);
+            }
+        }, 500);
+
         // Spawn initial items
         this.items.spawnRandomItems(10, new THREE.Vector3(0, 1, 0), 40);
 
