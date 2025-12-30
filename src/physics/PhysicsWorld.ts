@@ -137,6 +137,15 @@ export class PhysicsWorld {
         const maxDistance = direction.length();
         direction.normalize();
 
+        // Debug: List all bodies in world
+        const allBodies = this.world.bodies;
+        const dynamicBodies = allBodies.filter((b: any) => b.type === 1); // DYNAMIC = 1
+
+        console.log(`[PhysicsWorld] World has ${allBodies.length} bodies total, ${dynamicBodies.length} dynamic`);
+        if (dynamicBodies.length > 0) {
+            console.log(`[PhysicsWorld] First dynamic body at (${dynamicBodies[0].position.x.toFixed(1)}, ${dynamicBodies[0].position.y.toFixed(1)}, ${dynamicBodies[0].position.z.toFixed(1)})`);
+        }
+
         // Create ray and result
         const ray = new CANNON.Ray(from, to);
         const result = new CANNON.RaycastResult();
@@ -150,6 +159,7 @@ export class PhysicsWorld {
         ray.intersectWorld(this.world, result);
 
         // Debug logging
+        console.log(`[PhysicsWorld] Raycast: from (${from.x.toFixed(1)}, ${from.y.toFixed(1)}, ${from.z.toFixed(1)}) to (${to.x.toFixed(1)}, ${to.y.toFixed(1)}, ${to.z.toFixed(1)})`);
         console.log(`[PhysicsWorld] Raycast: hasHit=${result.hasHit}, distance=${result.distance?.toFixed(2)}`);
 
         // Check if we hit something
