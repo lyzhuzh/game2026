@@ -486,6 +486,13 @@ export class Game {
         // Pass fire data to weapon manager (camera origin and forward direction)
         const fireOrigin = this.playerPosition.clone();
         const fireDirection = this.fpsCamera.getForward();
+
+        // Debug: Log fire data (only when firing)
+        if (this.input.isActionPressed('attack')) {
+            console.log(`[Game] Fire origin: (${fireOrigin.x.toFixed(1)}, ${fireOrigin.y.toFixed(1)}, ${fireOrigin.z.toFixed(1)})`);
+            console.log(`[Game] Fire direction: (${fireDirection.x.toFixed(2)}, ${fireDirection.y.toFixed(2)}, ${fireDirection.z.toFixed(2)})`);
+        }
+
         this.weapons.setFireData(fireOrigin, fireDirection);
 
         // Update weapon renderer (sway, recoil)
