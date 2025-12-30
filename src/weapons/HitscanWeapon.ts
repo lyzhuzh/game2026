@@ -12,11 +12,21 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 export class HitscanWeapon extends Weapon {
     private world: PhysicsWorld;
     private scene: THREE.Scene;
+    // Custom hit detection callback
+    private checkEnemyHit?: (origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number) => { hit: boolean; position?: THREE.Vector3; distance?: number } | null;
 
     constructor(type: WeaponType, world: PhysicsWorld, scene: THREE.Scene) {
         super(type);
         this.world = world;
         this.scene = scene;
+    }
+
+    /**
+     * Set custom enemy hit detection callback
+     * This bypasses Cannon.js raycast which doesn't work with manually moved bodies
+     */
+    setEnemyHitCheck(callback: (origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number) => { hit: boolean; position?: THREE.Vector3; distance?: number } | null): void {
+        this.checkEnemyHit = callback;
     }
 
     /**
@@ -73,16 +83,34 @@ export class HitscanWeapon extends Weapon {
 
     /**
      * Perform raycast for hit detection
+     * Uses custom enemy hit detection if available (bypasses Cannon.js raycast issues)
      */
     private performRaycast(origin: THREE.Vector3, direction: THREE.Vector3): FireResult {
         const maxDistance = this.stats.range;
 
+        // Try custom enemy hit detection first (bypasses Cannon.js raycast)
+        if (this.checkEnemyHit) {
+            const customResult = this.checkEnemyHit(origin, direction, maxDistance);
+            if (customResult && customResult.hit) {
+                return {
+                    hit: true,
+                    position: customResult.position,
+                    normal: direction.clone().negate(),
+                    distance: customResult.distance || 0
+                };
+            }
+        }
+
+        // Fallback to physics raycast for environment
+        const rayStart = new THREE.Vector3().copy(origin).addScaledVector(direction, 0.5);
+        const adjustedMaxDistance = maxDistance - 0.5;
+
         // Convert to cannon-es vectors
-        const from = new CANNON.Vec3(origin.x, origin.y, origin.z);
+        const from = new CANNON.Vec3(rayStart.x, rayStart.y, rayStart.z);
         const to = new CANNON.Vec3(
-            origin.x + direction.x * maxDistance,
-            origin.y + direction.y * maxDistance,
-            origin.z + direction.z * maxDistance
+            rayStart.x + direction.x * adjustedMaxDistance,
+            rayStart.y + direction.y * adjustedMaxDistance,
+            rayStart.z + direction.z * adjustedMaxDistance
         );
 
         // Perform physics raycast

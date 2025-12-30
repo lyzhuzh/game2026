@@ -164,6 +164,12 @@ export class Enemy {
             { type: 'dynamic', mass: 50, fixedRotation: true, linearDamping: 0.1 },
             this.mesh
         );
+
+        // Debug: verify physics body was added to world
+        console.log(`[Enemy] Created enemy at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
+        console.log(`[Enemy] Physics body position: (${this.physicsBody.body.position.x.toFixed(1)}, ${this.physicsBody.body.position.y.toFixed(1)}, ${this.physicsBody.body.position.z.toFixed(1)})`);
+        console.log(`[Enemy] Physics body in world?`, this.physicsBody.body.world !== undefined);
+        console.log(`[Enemy] Total dynamic bodies in world:`, physics.getWorld().bodies.filter((b: any) => b.type === 1 && b.mass > 0).length);
     }
 
     /**
@@ -731,6 +737,24 @@ export class Enemy {
         // Sync physics body to match (keep Y at 1 to stay above ground)
         this.physicsBody.body.position.set(this.mesh.position.x, 1, this.mesh.position.z);
         this.physicsBody.body.velocity.set(0, 0, 0); // Clear velocity since we're moving manually
+
+        // Update AABB for raycast detection - must manually update after moving body
+        // Get the box shape
+        const shape = this.physicsBody.body.shapes[0] as CANNON.Box;
+        if (shape) {
+            // Calculate AABB from position and box halfExtents
+            const halfExtents = shape.halfExtents;
+            this.physicsBody.body.aabb.lowerBound.set(
+                this.physicsBody.body.position.x - halfExtents.x,
+                this.physicsBody.body.position.y - halfExtents.y,
+                this.physicsBody.body.position.z - halfExtents.z
+            );
+            this.physicsBody.body.aabb.upperBound.set(
+                this.physicsBody.body.position.x + halfExtents.x,
+                this.physicsBody.body.position.y + halfExtents.y,
+                this.physicsBody.body.position.z + halfExtents.z
+            );
+        }
 
         // 更新脚步声计时器
         this.footstepTimer += deltaTime;

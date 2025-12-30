@@ -258,7 +258,8 @@ export class Game {
             onSwitch: (weaponType) => this.onWeaponSwitch(weaponType),
             projectileManager: this.projectiles,
             particleSystem: this.particles,
-            onFlamethrowerDamage: (origin, direction, range, damage) => this.onFlamethrowerDamage(origin, direction, range, damage)
+            onFlamethrowerDamage: (origin, direction, range, damage) => this.onFlamethrowerDamage(origin, direction, range, damage),
+            onEnemyHitCheck: (origin, direction, maxDistance) => this.checkEnemyHit(origin, direction, maxDistance)
         });
 
         this.setupEventListeners();
@@ -319,31 +320,11 @@ export class Game {
         // Add lights
         this.setupLights();
 
-        // 调试：输出玩家周围的所有静态物体
-        this.debugNearbyStaticObjects();
-
         // Set initial player position for enemy spawning
         this.enemies.setPlayerPosition(this.playerPosition);
 
-        // Start first wave of enemies
+        // Start first wave
         this.enemies.startWave(1);
-
-        // Face the first enemy after a short delay
-        setTimeout(() => {
-            const nearestEnemy = this.enemies.getNearestEnemy(this.playerPosition, 1000);
-            if (nearestEnemy) {
-                const enemyPos = nearestEnemy.getPosition();
-                const direction = new THREE.Vector3()
-                    .subVectors(enemyPos, this.playerPosition)
-                    .normalize();
-
-                // Calculate yaw angle to face enemy
-                const yaw = Math.atan2(direction.x, direction.z);
-                this.fpsCamera.setYaw(yaw);
-
-                console.log('[Game] Facing first enemy at', enemyPos);
-            }
-        }, 500);
 
         // Spawn initial items
         this.items.spawnRandomItems(10, new THREE.Vector3(0, 1, 0), 40);
@@ -501,7 +482,7 @@ export class Game {
         this.particles.update(deltaTime);
 
         // Pass fire data to weapon manager (camera origin and forward direction)
-        const fireOrigin = this.playerPosition.clone();
+        const fireOrigin = this.fpsCamera.getPosition();
         const fireDirection = this.fpsCamera.getForward();
         this.weapons.setFireData(fireOrigin, fireDirection);
 
@@ -576,7 +557,6 @@ export class Game {
      */
     private onPointerLockChange = (): void => {
         const isLocked = document.pointerLockElement === document.body;
-        console.log('[PointerLock] State:', isLocked ? 'LOCKED' : 'UNLOCKED');
 
         const clickToStart = document.getElementById('click-to-start');
         if (isLocked) {
@@ -612,57 +592,6 @@ export class Game {
         this.fpsCamera.setPosition(this.playerPosition);
 
         console.log('[Game] Player respawned at spawn point');
-    }
-
-    /**
-     * 调试：输出玩家周围的所有静态物体
-     */
-    private debugNearbyStaticObjects(): void {
-        const allBodies = this.physics.getBodies();
-        const playerPos = this.character.getPosition();
-
-        console.log('===== 调试信息：玩家周围的静态物体 =====');
-        console.log('[玩家出生点]', {
-            x: playerPos.x.toFixed(2),
-            y: playerPos.y.toFixed(2),
-            z: playerPos.z.toFixed(2)
-        });
-
-        // 玩家周围的半径（60单位）
-        const checkRadius = 60;
-        let nearbyCount = 0;
-
-        for (const body of allBodies) {
-            if (body.type !== CANNON.Body.STATIC) continue;
-
-            const dx = body.position.x - playerPos.x;
-            const dz = body.position.z - playerPos.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-
-            if (distance < checkRadius) {
-                const shape = body.shapes[0];
-                if (shape instanceof CANNON.Box) {
-                    nearbyCount++;
-                    const halfExtents = shape.halfExtents;
-                    const posX = body.position.x.toFixed(2);
-                    const posY = body.position.y.toFixed(2);
-                    const posZ = body.position.z.toFixed(2);
-                    const sizeX = (halfExtents.x * 2).toFixed(2);
-                    const sizeY = (halfExtents.y * 2).toFixed(2);
-                    const sizeZ = (halfExtents.z * 2).toFixed(2);
-
-                    // 距离玩家小于10的物体用红色警告
-                    if (distance < 10) {
-                        console.warn(`[静态物体 ${nearbyCount}] ⚠️ 距离玩家 ${distance.toFixed(2)} 单位 - 位置:(${posX}, ${posY}, ${posZ}) 尺寸:${sizeX}x${sizeY}x${sizeZ}`);
-                    } else {
-                        console.log(`[静态物体 ${nearbyCount}] 距离: ${distance.toFixed(2)} - 位置:(${posX}, ${posY}, ${posZ}) 尺寸:${sizeX}x${sizeY}x${sizeZ}`);
-                    }
-                }
-            }
-        }
-
-        console.log(`[总计] 在玩家 ${checkRadius} 单位范围内找到 ${nearbyCount} 个静态物体`);
-        console.log('========================================');
     }
 
     /**
@@ -753,6 +682,15 @@ export class Game {
         fireOrigin.y -= 0.12;
 
         this.particles.muzzleFlash(fireOrigin, fireDirection);
+    }
+
+    /**
+     * Custom enemy hit detection for hitscan weapons
+     * Bypasses Cannon.js raycast which doesn't work with manually moved bodies
+     * Uses ray-to-sphere intersection detection via EnemyManager
+     */
+    private checkEnemyHit(origin: THREE.Vector3, direction: THREE.Vector3, maxDistance: number): { hit: boolean; position?: THREE.Vector3; distance?: number } | null {
+        return this.enemies.raycastEnemies(origin, direction, maxDistance);
     }
 
     /**
