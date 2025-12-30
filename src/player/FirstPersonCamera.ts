@@ -138,6 +138,13 @@ export class FirstPersonCamera {
     getForward(): THREE.Vector3 {
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(this.camera.quaternion);
+
+        // Debug: Log camera orientation occasionally
+        if (Math.random() < 0.01) { // 1% chance to avoid spam
+            console.log(`[Camera] yaw=${this.yaw.toFixed(2)}, pitch=${this.pitch.toFixed(2)}`);
+            console.log(`[Camera] forward=(${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)})`);
+        }
+
         return forward;
     }
 
