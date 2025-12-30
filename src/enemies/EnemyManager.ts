@@ -96,11 +96,8 @@ export class EnemyManager {
         // Check max concurrent enemies
         const livingEnemies = this.enemies.filter(e => !e.isEnemyDead()).length;
         if (livingEnemies >= this.maxConcurrentEnemies) {
-            console.log(`[EnemyManager] Max concurrent enemies reached (${this.maxConcurrentEnemies}), skipping spawn`);
             return null;
         }
-
-        console.log(`[EnemyManager] Spawning ${config.type} at (${config.position.x.toFixed(1)}, ${config.position.y.toFixed(1)}, ${config.position.z.toFixed(1)})`);
 
         const enemy = new Enemy(
             config.type,
@@ -132,6 +129,25 @@ export class EnemyManager {
         this.enemiesRemaining++;
 
         return enemy;
+    }
+
+    /**
+     * Start a wave
+     */
+    startWave(waveNumber: number): void {
+        this.waveNumber = waveNumber;
+        this.enemiesRemaining = 0;
+        this.waveInProgress = true;
+
+        // Calculate enemy count based on wave number
+        const enemyCount = Math.min(5 + waveNumber * 2, this.maxConcurrentEnemies);
+
+        // Spawn enemies
+        for (let i = 0; i < enemyCount; i++) {
+            const enemyType = this.getRandomEnemyType(waveNumber);
+            const position = this.getRandomSpawnPosition(this.playerPosition, this.spawnRadius);
+            this.spawnEnemy({ type: enemyType, position });
+        }
     }
 
     /**
@@ -234,7 +250,6 @@ export class EnemyManager {
 
         if (livingEnemies === 0 && this.enemiesRemaining === 0) {
             this.waveInProgress = false;
-            console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
 
             // Auto-start next wave after delay
             this.timerManager.setTimeout(() => {
@@ -316,24 +331,18 @@ export class EnemyManager {
      * Damage enemy at position (raycast hit)
      */
     damageEnemyAtPosition(position: THREE.Vector3, damage: number): boolean {
-        console.log(`[EnemyManager] damageEnemyAtPosition called at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) with damage ${damage}`);
-
         for (const enemy of this.enemies) {
             if (enemy.isEnemyDead()) continue;
 
             const enemyPos = enemy.getPosition();
             const distance = position.distanceTo(enemyPos);
 
-            console.log(`[EnemyManager] Checking enemy at (${enemyPos.x.toFixed(1)}, ${enemyPos.y.toFixed(1)}, ${enemyPos.z.toFixed(1)}), distance: ${distance.toFixed(2)}`);
-
-            if (distance < 3) { // Hit threshold - increased for better hit detection
-                console.log(`[EnemyManager] HIT! Applying ${damage} damage to enemy`);
+            if (distance < 3) { // Hit threshold
                 enemy.takeDamage(damage);
                 return true;
             }
         }
 
-        console.log(`[EnemyManager] MISS! No enemy in range`);
         return false;
     }
 
