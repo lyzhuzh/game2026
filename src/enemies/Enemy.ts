@@ -143,6 +143,8 @@ export class Enemy {
         physics: PhysicsWorld,
         scene: THREE.Scene
     ) {
+        console.log(`[Enemy] Constructor called for ${type} at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
+
         this.type = type;
         this.stats = { ...ENEMY_CONFIGS[type] };
         this.health = this.stats.maxHealth;
@@ -153,6 +155,7 @@ export class Enemy {
         this.mesh = new THREE.Group();
         this.mesh.position.set(position.x, position.y + 1, position.z); // Y+1 to stand on ground
         scene.add(this.mesh);
+        console.log(`[Enemy] Mesh added to scene at`, this.mesh.position);
 
         // Try to load model, fall back to placeholder
         this.loadModel();
@@ -180,6 +183,8 @@ export class Enemy {
             return;
         }
 
+        console.log(`[Enemy] Loading model for ${this.type} from ${assetConfig.url}`);
+
         try {
             // Always load fresh copy
             const gltf = await this.assetManager.loadAsset(assetConfig);
@@ -190,8 +195,10 @@ export class Enemy {
 
                 // Extract animations if available
                 const animations = gltf.animations || [];
+                console.log(`[Enemy] Model loaded for ${this.type}, ${animations.length} animations`);
                 this.attachModel(clonedScene, animations);
             } else {
+                console.warn(`[Enemy] GLTF loaded but no scene found for ${this.type}`);
                 this.createPlaceholder();
             }
         } catch (error) {
@@ -360,6 +367,8 @@ export class Enemy {
      * Create placeholder geometry (fallback)
      */
     private createPlaceholder(): void {
+        console.log(`[Enemy] Creating placeholder for ${this.type} at position`, this.mesh.position);
+
         // Clear existing children
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];

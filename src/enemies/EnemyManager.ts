@@ -96,8 +96,11 @@ export class EnemyManager {
         // Check max concurrent enemies
         const livingEnemies = this.enemies.filter(e => !e.isEnemyDead()).length;
         if (livingEnemies >= this.maxConcurrentEnemies) {
+            console.log(`[EnemyManager] Max concurrent enemies reached (${this.maxConcurrentEnemies}), skipping spawn`);
             return null;
         }
+
+        console.log(`[EnemyManager] Spawning ${config.type} at (${config.position.x.toFixed(1)}, ${config.position.y.toFixed(1)}, ${config.position.z.toFixed(1)})`);
 
         const enemy = new Enemy(
             config.type,
@@ -205,7 +208,7 @@ export class EnemyManager {
             this.spawnEnemy({ type: enemyType, position });
         }
 
-        // console.log(`[EnemyManager] Wave ${waveNumber} started with ${enemyCount} enemies`);
+        console.log(`[EnemyManager] Wave ${waveNumber} started with ${enemyCount} enemies`);
     }
 
     /**
@@ -231,7 +234,7 @@ export class EnemyManager {
 
         if (livingEnemies === 0 && this.enemiesRemaining === 0) {
             this.waveInProgress = false;
-            // console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
+            console.log(`[EnemyManager] Wave ${this.waveNumber} complete!`);
 
             // Auto-start next wave after delay
             this.timerManager.setTimeout(() => {
