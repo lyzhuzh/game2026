@@ -149,23 +149,31 @@ export class PhysicsWorld {
         // Perform raycast against the world
         ray.intersectWorld(this.world, result);
 
+        // Debug logging
+        console.log(`[PhysicsWorld] Raycast: hasHit=${result.hasHit}, distance=${result.distance?.toFixed(2)}`);
+
         // Check if we hit something
         if (result.hasHit) {
             const body = result.body;
+            console.log(`[PhysicsWorld] Hit body: type=${body.type}, mass=${body.mass}`);
 
             // Skip player body (kinematic with mass 0)
             if (body.type === CANNON.Body.KINEMATIC && body.mass === 0) {
+                console.log(`[PhysicsWorld] Skipping player body`);
                 return null;
             }
 
             // Skip ground (static with plane shape)
             if (body.type === CANNON.Body.STATIC &&
                 body.shapes.some((s: any) => s instanceof CANNON.Plane)) {
+                console.log(`[PhysicsWorld] Skipping ground`);
                 return null;
             }
 
             // Calculate hit point from ray origin and distance
             const hitPoint = from.vadd(direction.scale(result.distance));
+
+            console.log(`[PhysicsWorld] Valid hit at (${hitPoint.x.toFixed(1)}, ${hitPoint.y.toFixed(1)}, ${hitPoint.z.toFixed(1)})`);
 
             // Set hit point properties (compatibility with old code)
             result.hitPoint = hitPoint;
@@ -182,6 +190,7 @@ export class PhysicsWorld {
             return result;
         }
 
+        console.log(`[PhysicsWorld] No hit detected`);
         return null;
     }
 

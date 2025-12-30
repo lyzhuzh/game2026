@@ -36,6 +36,8 @@ export class HitscanWeapon extends Weapon {
         // Perform raycast
         const result = this.performRaycast(origin, spreadDirection);
 
+        console.log(`[HitscanWeapon] Fire result: hit=${result.hit}, position=(${result.position?.x.toFixed(1)}, ${result.position?.y.toFixed(1)}, ${result.position?.z.toFixed(1)}), distance=${result.distance}`);
+
         // Consume ammo
         this.consumeAmmo(time);
 

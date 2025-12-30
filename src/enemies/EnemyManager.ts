@@ -316,16 +316,24 @@ export class EnemyManager {
      * Damage enemy at position (raycast hit)
      */
     damageEnemyAtPosition(position: THREE.Vector3, damage: number): boolean {
+        console.log(`[EnemyManager] damageEnemyAtPosition called at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) with damage ${damage}`);
+
         for (const enemy of this.enemies) {
             if (enemy.isEnemyDead()) continue;
 
             const enemyPos = enemy.getPosition();
             const distance = position.distanceTo(enemyPos);
+
+            console.log(`[EnemyManager] Checking enemy at (${enemyPos.x.toFixed(1)}, ${enemyPos.y.toFixed(1)}, ${enemyPos.z.toFixed(1)}), distance: ${distance.toFixed(2)}`);
+
             if (distance < 3) { // Hit threshold - increased for better hit detection
+                console.log(`[EnemyManager] HIT! Applying ${damage} damage to enemy`);
                 enemy.takeDamage(damage);
                 return true;
             }
         }
+
+        console.log(`[EnemyManager] MISS! No enemy in range`);
         return false;
     }
 

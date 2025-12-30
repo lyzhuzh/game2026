@@ -189,6 +189,8 @@ export class Enemy {
             // Always load fresh copy
             const gltf = await this.assetManager.loadAsset(assetConfig);
 
+            console.log(`[Enemy] GLTF loaded, has scene: ${!!gltf?.scene}, has animations: ${!!gltf?.animations}, gltf keys: ${gltf ? Object.keys(gltf) : 'null'}`);
+
             if (gltf && gltf.scene) {
                 // Deep clone the scene manually
                 const clonedScene = this.deepCloneGltf(gltf.scene);

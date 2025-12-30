@@ -742,16 +742,20 @@ export class Game {
      * Handle weapon hit (damage number + particles)
      */
     private onWeaponHit(position: THREE.Vector3, damage: number): void {
+        console.log(`[Game] onWeaponHit: position (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}), damage ${damage}`);
+
         // Damage enemy at position (returns true if hit)
         const hit = this.enemies.damageEnemyAtPosition(position, damage);
 
         if (hit) {
+            console.log(`[Game] Enemy hit confirmed`);
             // Show damage number
             this.ui.showDamageNumber(damage, position, false);
 
             // Add blood splatter effect
             this.particles.bloodSplatter(position, new THREE.Vector3(0, 1, 0));
         } else {
+            console.log(`[Game] Enemy missed`);
             // Missed - add spark/bullet hole effect
             this.particles.bulletHole(position, new THREE.Vector3(0, 1, 0));
             this.particles.spark(position, new THREE.Vector3(0, 1, 0));
