@@ -25,6 +25,9 @@ export class EnemyManager {
     private enemiesRemaining: number = 0;
     private waveInProgress: boolean = false;
 
+    // Track enemies scheduled for cleanup
+    private enemiesScheduledForCleanup: Set<Enemy> = new Set();
+
     // Spawning
     private spawnRadius: number = 50;
     private maxConcurrentEnemies: number = 10;
@@ -243,19 +246,23 @@ export class EnemyManager {
      * Cleanup dead enemies
      */
     private cleanupDeadEnemies(): void {
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-            const enemy = this.enemies[i];
-            if (enemy.isEnemyDead()) {
-                // Remove after delay (for death animation)
-                this.timerManager.setTimeout(() => {
-                    const index = this.enemies.indexOf(enemy);
-                    if (index !== -1) {
-                        enemy.dispose();
-                        this.enemies.splice(index, 1);
-                        this.enemiesRemaining--;
-                    }
-                }, 2000);
-            }
+        // Find dead enemies that are not yet scheduled for cleanup
+        const deadEnemies = this.enemies.filter(e => e.isEnemyDead() && !this.enemiesScheduledForCleanup.has(e));
+
+        for (const enemy of deadEnemies) {
+            // Mark as scheduled for cleanup
+            this.enemiesScheduledForCleanup.add(enemy);
+
+            // Remove after delay (for death animation)
+            this.timerManager.setTimeout(() => {
+                const index = this.enemies.indexOf(enemy);
+                if (index !== -1) {
+                    enemy.dispose();
+                    this.enemies.splice(index, 1);
+                    this.enemiesScheduledForCleanup.delete(enemy);
+                    this.enemiesRemaining--;
+                }
+            }, 2000);
         }
     }
 
