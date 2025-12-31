@@ -40,12 +40,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     grunt: {
         maxHealth: 50,
         health: 50,
-        moveSpeed: 2,
-        chaseSpeed: 4,
+        moveSpeed: 10,  // 2 -> 10 (faster movement)
+        chaseSpeed: 15,  // 4 -> 15
         rotationSpeed: 2,
         damage: 10,
         attackRange: 3,
-        attackCooldown: 2.0,  // 1.5 -> 2.0 (slower attack)
+        attackCooldown: 2.0,
         detectionRange: 15,
         loseSightRange: 25,
         scoreValue: 100
@@ -54,12 +54,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     soldier: {
         maxHealth: 80,
         health: 80,
-        moveSpeed: 2.5,
-        chaseSpeed: 5,
+        moveSpeed: 12,  // 2.5 -> 12
+        chaseSpeed: 18,  // 5 -> 18
         rotationSpeed: 2.5,
         damage: 15,
         attackRange: 5,
-        attackCooldown: 1.5,  // 1.0 -> 1.5
+        attackCooldown: 1.5,
         detectionRange: 20,
         loseSightRange: 30,
         scoreValue: 200
@@ -68,12 +68,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     heavy: {
         maxHealth: 200,
         health: 200,
-        moveSpeed: 1.5,
-        chaseSpeed: 3,
+        moveSpeed: 8,  // 1.5 -> 8
+        chaseSpeed: 12,  // 3 -> 12
         rotationSpeed: 1,
-        damage: 25,  // 30 -> 25
+        damage: 25,
         attackRange: 4,
-        attackCooldown: 2.5,  // 2.0 -> 2.5
+        attackCooldown: 2.5,
         detectionRange: 12,
         loseSightRange: 20,
         scoreValue: 500
@@ -82,12 +82,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     sniper: {
         maxHealth: 40,
         health: 40,
-        moveSpeed: 2,
-        chaseSpeed: 3,
+        moveSpeed: 10,  // 2 -> 10
+        chaseSpeed: 12,  // 3 -> 12
         rotationSpeed: 2,
-        damage: 35,  // 50 -> 35
+        damage: 35,
         attackRange: 30,
-        attackCooldown: 3.0,  // 2.5 -> 3.0
+        attackCooldown: 3.0,
         detectionRange: 25,
         loseSightRange: 35,
         scoreValue: 300
@@ -161,9 +161,13 @@ export class Enemy {
         this.physicsBody = PhysicsBodyFactory.createBox(
             physics,
             { x: 1, y: 2, z: 1 },
-            { type: 'dynamic', mass: 50, fixedRotation: true, linearDamping: 0.1 },
+            { type: 'dynamic', mass: 50, fixedRotation: true, linearDamping: 0 },
             this.mesh
         );
+
+        // Disable sleep so enemy always responds to velocity changes
+        this.physicsBody.body.allowSleep = false;
+        this.physicsBody.body.sleepSpeedLimit = -1;
 
         // Debug: verify physics body was added to world
         console.log(`[Enemy] Created enemy at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
@@ -690,10 +694,10 @@ export class Enemy {
 
         const distance = currentPos.distanceTo(this.randomPatrolTarget);
 
-        // Slow down when approaching target
-        let actualSpeed = this.stats.moveSpeed * 0.5;
+        // Use full moveSpeed for patrol (no 0.5x reduction)
+        let actualSpeed = this.stats.moveSpeed;
         if (distance < 3) {
-            actualSpeed = this.stats.moveSpeed * 0.5 * (distance / 3);
+            actualSpeed = this.stats.moveSpeed * (distance / 3);
         }
 
         this.move(direction, actualSpeed);
@@ -755,12 +759,21 @@ export class Enemy {
      * Move enemy - using physics simulation
      */
     private move(direction: THREE.Vector3, speed: number): void {
+        // Wake up the physics body so it responds to velocity changes
+        this.physicsBody.body.wakeUp();
+
         // Set velocity to let physics engine handle movement
-        this.physicsBody.body.velocity.set(
-            direction.x * speed,
-            0, // Keep horizontal movement
-            direction.z * speed
-        );
+        const vx = direction.x * speed;
+        const vz = direction.z * speed;
+        this.physicsBody.body.velocity.set(vx, 0, vz);
+
+        // CRITICAL: Keep enemy at ground level by counteracting gravity
+        // Physics engine gravity (-9.82) will pull enemy down, so we need to keep Y position stable
+        const targetY = 1; // Ground level + half height
+        if (Math.abs(this.physicsBody.body.position.y - targetY) > 0.1) {
+            this.physicsBody.body.position.y = targetY;
+            this.physicsBody.body.velocity.y = 0;
+        }
 
         // 更新脚步声计时器
         const deltaTime = Time.deltaTime;
