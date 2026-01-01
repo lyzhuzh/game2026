@@ -389,6 +389,26 @@ export class UIManager {
     }
 
     /**
+     * Show sniper scope overlay
+     */
+    showSniperScope(): void {
+        const scope = document.getElementById('sniper-scope');
+        if (scope) {
+            scope.classList.add('active');
+        }
+    }
+
+    /**
+     * Hide sniper scope overlay
+     */
+    hideSniperScope(): void {
+        const scope = document.getElementById('sniper-scope');
+        if (scope) {
+            scope.classList.remove('active');
+        }
+    }
+
+    /**
      * Cleanup
      */
     dispose(): void {

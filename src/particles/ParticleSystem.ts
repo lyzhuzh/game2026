@@ -111,35 +111,102 @@ export class ParticleSystem {
     }
 
     /**
-     * Muzzle flash effect (enhanced - brighter and more visible)
+     * Muzzle flash effect - weapon specific
+     * @param position - Position to emit from
+     * @param direction - Direction the weapon is facing
+     * @param weaponType - Type of weapon (affects flash characteristics)
      */
-    muzzleFlash(position: THREE.Vector3, direction: THREE.Vector3): void {
-        // Enhanced effect - more particles, larger, more visible
-        const particleCount = 8 + Math.floor(Math.random() * 6); // 8-14 particles
+    muzzleFlash(position: THREE.Vector3, direction: THREE.Vector3, weaponType: string = 'pistol'): void {
+        // Weapon-specific configurations
+        interface FlashConfig {
+            particleCount: number;
+            color: number;
+            sizeMin: number;
+            sizeMax: number;
+            speedMin: number;
+            speedMax: number;
+            spread: number;
+            lifetime: number;
+        }
 
-        for (let i = 0; i < particleCount; i++) {
+        const configs: Record<string, FlashConfig> = {
+            pistol: {
+                particleCount: 6,
+                color: 0xffdd44,      // Yellow-orange
+                sizeMin: 0.15,
+                sizeMax: 0.25,
+                speedMin: 2,
+                speedMax: 4,
+                spread: 0.2,
+                lifetime: 0.06
+            },
+            rifle: {
+                particleCount: 10,
+                color: 0xffaa22,      // Orange
+                sizeMin: 0.2,
+                sizeMax: 0.35,
+                speedMin: 4,
+                speedMax: 8,
+                spread: 0.15,
+                lifetime: 0.05
+            },
+            shotgun: {
+                particleCount: 25,    // Lots of particles for spread
+                color: 0xff6622,      // Deep orange
+                sizeMin: 0.25,
+                sizeMax: 0.45,
+                speedMin: 5,
+                speedMax: 12,
+                spread: 0.5,          // Wide spread
+                lifetime: 0.08
+            },
+            smg: {
+                particleCount: 5,     // Small, fast
+                color: 0xffcc44,      // Bright yellow
+                sizeMin: 0.1,
+                sizeMax: 0.2,
+                speedMin: 3,
+                speedMax: 6,
+                spread: 0.15,
+                lifetime: 0.04
+            },
+            sniper: {
+                particleCount: 15,
+                color: 0xffffff,      // White-hot flash
+                sizeMin: 0.3,
+                sizeMax: 0.5,
+                speedMin: 8,
+                speedMax: 15,
+                spread: 0.1,          // Tight, focused
+                lifetime: 0.1
+            }
+        };
+
+        const config = configs[weaponType] || configs.pistol;
+
+        for (let i = 0; i < config.particleCount; i++) {
             // Cone spread in fire direction
             const spreadDir = direction.clone();
-            spreadDir.x += (Math.random() - 0.5) * 0.3; // More spread
-            spreadDir.y += (Math.random() - 0.5) * 0.3;
-            spreadDir.z += (Math.random() - 0.5) * 0.3;
+            spreadDir.x += (Math.random() - 0.5) * config.spread;
+            spreadDir.y += (Math.random() - 0.5) * config.spread;
+            spreadDir.z += (Math.random() - 0.5) * config.spread;
             spreadDir.normalize();
 
             // Add randomness to speed
-            const speed = 2 + Math.random() * 4;
+            const speed = config.speedMin + Math.random() * (config.speedMax - config.speedMin);
 
-            const config: ParticleConfig = {
+            const particleConfig: ParticleConfig = {
                 type: 'muzzle_flash',
                 position: position.clone(),
                 count: 1,
-                color: 0xffdd44, // Bright yellow-orange
-                size: 0.4 + Math.random() * 0.3, // Larger size (0.12-0.18 world units)
-                lifetime: 0.05 + Math.random() * 0.08, // Longer lived (50-130ms)
+                color: config.color,
+                size: config.sizeMin + Math.random() * (config.sizeMax - config.sizeMin),
+                lifetime: config.lifetime * (0.8 + Math.random() * 0.4),
                 velocity: spreadDir.multiplyScalar(speed),
                 gravity: 0,
                 fadeOut: true
             };
-            this.emit(config);
+            this.emit(particleConfig);
         }
     }
 

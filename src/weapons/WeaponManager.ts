@@ -75,29 +75,13 @@ export class WeaponManager {
      * Initialize all weapons
      */
     private initializeWeapons(): void {
-        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper', 'rocket_launcher', 'flamethrower'];
+        // Only 5 weapons: pistol, rifle, shotgun, smg, sniper
+        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper'];
 
         // Initialize hitscan weapons
-        const hitscanTypes: WeaponType[] = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper'];
-        for (const type of hitscanTypes) {
+        for (const type of this.weaponTypes) {
             const weapon = new HitscanWeapon(type, this.world, this.scene);
             this.weapons.set(type, weapon);
-        }
-
-        // Initialize rocket launcher (requires ProjectileManager)
-        if (this.projectileManager) {
-            const rocketLauncher = new RocketLauncher('rocket_launcher', this.world, this.scene, this.projectileManager);
-            this.weapons.set('rocket_launcher', rocketLauncher);
-        }
-
-        // Initialize flamethrower (requires ParticleSystem)
-        if (this.particleSystem) {
-            this.flamethrower = new Flamethrower('flamethrower', this.world, this.scene, this.particleSystem);
-            // Set damage callback if provided
-            if (this.onFlamethrowerDamage) {
-                this.flamethrower.setOnDamage(this.onFlamethrowerDamage);
-            }
-            this.weapons.set('flamethrower', this.flamethrower);
         }
     }
 
@@ -149,8 +133,8 @@ export class WeaponManager {
      * Handle weapon switching input
      */
     private handleWeaponSwitching(): void {
-        // Number keys 1-7 for weapon switching
-        for (let i = 1; i <= 7; i++) {
+        // Number keys 1-5 for weapon switching (5 weapons only)
+        for (let i = 1; i <= 5; i++) {
             if (this.input.isActionJustPressed(`weapon_${i}` as any)) {
                 const weaponType = this.weaponTypes[i - 1];
                 if (weaponType) {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -283,8 +284,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         /* Crosshair damage effect */
@@ -333,9 +341,11 @@
                 opacity: 1;
                 transform: translateY(0) scale(1);
             }
+
             50% {
                 transform: translateY(-30px) scale(1.2);
             }
+
             100% {
                 opacity: 0;
                 transform: translateY(-60px) scale(0.8);
@@ -399,6 +409,7 @@
                 transform: translateX(100%);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
@@ -431,8 +442,15 @@
         }
 
         @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         /* Wave announcement */
@@ -483,8 +501,185 @@
             opacity: 1;
             transform: translateX(-50%) translateY(-10px);
         }
+
+        /* Sniper Scope Overlay */
+        #sniper-scope {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        #sniper-scope.active {
+            opacity: 1;
+        }
+
+        /* Scope lens circle */
+        .scope-lens {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(70vw, 70vh);
+            height: min(70vw, 70vh);
+            border-radius: 50%;
+            border: 3px solid rgba(0, 0, 0, 0.9);
+            box-shadow:
+                0 0 0 2000px rgba(0, 0, 0, 0.95),
+                inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+                inset 0 0 100px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Scope crosshair */
+        .scope-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(70vw, 70vh);
+            height: min(70vw, 70vh);
+        }
+
+        /* Horizontal line */
+        .scope-crosshair::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        /* Vertical line */
+        .scope-crosshair::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 1px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        /* Center dot */
+        .scope-center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 0, 0, 0.9);
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.8);
+        }
+
+        /* Mil-dot markers - horizontal */
+        .scope-mil-h {
+            position: absolute;
+            top: 50%;
+            height: 2px;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .scope-mil-h.left {
+            left: calc(50% - min(35vw, 35vh));
+        }
+
+        .scope-mil-h.right {
+            right: calc(50% - min(35vw, 35vh));
+        }
+
+        /* Mil-dot markers - vertical */
+        .scope-mil-v {
+            position: absolute;
+            left: 50%;
+            width: 2px;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .scope-mil-v.top {
+            top: calc(50% - min(35vw, 35vh));
+        }
+
+        .scope-mil-v.bottom {
+            bottom: calc(50% - min(35vw, 35vh));
+        }
+
+        /* Range markers on horizontal line */
+        .scope-range-marker {
+            position: absolute;
+            top: 50%;
+            width: 3px;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            transform: translateY(-50%);
+        }
+
+        .scope-range-marker:nth-child(1) {
+            left: 40%;
+        }
+
+        .scope-range-marker:nth-child(2) {
+            left: 45%;
+        }
+
+        .scope-range-marker:nth-child(3) {
+            right: 40%;
+        }
+
+        .scope-range-marker:nth-child(4) {
+            right: 45%;
+        }
+
+        /* Elevation markers on vertical line */
+        .scope-elevation-marker {
+            position: absolute;
+            left: 50%;
+            width: 8px;
+            height: 3px;
+            background: rgba(0, 0, 0, 0.8);
+            transform: translateX(-50%);
+        }
+
+        .scope-elevation-marker:nth-child(1) {
+            top: 40%;
+        }
+
+        .scope-elevation-marker:nth-child(2) {
+            top: 45%;
+        }
+
+        .scope-elevation-marker:nth-child(3) {
+            bottom: 40%;
+        }
+
+        .scope-elevation-marker:nth-child(4) {
+            bottom: 45%;
+        }
+
+        /* Scope tick marks (small dots along lines) */
+        .scope-tick {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+        }
+
+        /* Hide regular crosshair when scope is active */
+        #sniper-scope.active~#hud #crosshair {
+            opacity: 0;
+        }
     </style>
 </head>
+
 <body>
     <div id="game-container">
         <!-- Loading Screen -->
@@ -499,6 +694,24 @@
         <!-- Click to Start Overlay -->
         <div id="click-to-start">
             <p id="click-to-start-text">点击开始游戏</p>
+        </div>
+
+        <!-- Sniper Scope Overlay -->
+        <div id="sniper-scope">
+            <div class="scope-lens"></div>
+            <div class="scope-crosshair">
+                <!-- Range markers (horizontal) -->
+                <div class="scope-range-marker"></div>
+                <div class="scope-range-marker"></div>
+                <div class="scope-range-marker"></div>
+                <div class="scope-range-marker"></div>
+                <!-- Elevation markers (vertical) -->
+                <div class="scope-elevation-marker"></div>
+                <div class="scope-elevation-marker"></div>
+                <div class="scope-elevation-marker"></div>
+                <div class="scope-elevation-marker"></div>
+            </div>
+            <div class="scope-center-dot"></div>
         </div>
 
         <!-- HUD -->
@@ -552,6 +765,21 @@
         </div>
     </div>
 
+    <!-- Debug keyboard listener for weapon positioning -->
+    <script>
+        // Debug keys tracking for weapon position adjustment
+        window.__debugKeys = {};
+        document.addEventListener('keydown', (e) => {
+            window.__debugKeys[e.code] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            window.__debugKeys[e.code] = false;
+        });
+        console.log('[Debug] Muzzle flash position adjustment enabled:');
+        console.log('  Arrow Up/Down: Forward distance (while shooting)');
+        console.log('  Arrow Left/Right: Down offset (while shooting)');
+    </script>
     <script type="module" src="/src/main.ts"></script>
 </body>
+
 </html>

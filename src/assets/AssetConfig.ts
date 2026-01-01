@@ -49,12 +49,11 @@ export const GAME_ASSETS: AssetConfig[] = [
     },
 
     // ============ PLAYER CHARACTER ============
-    // TODO: Add player character model
     {
         id: 'player_character',
         type: 'glb',
-        url: `${ASSETS_BASE_PATH}/environment/astronautA.glb`, // Using astronaut as placeholder
-        preload: false
+        url: `${ASSETS_BASE_PATH}/player/player.glb`,
+        preload: true
     },
 
     // ============ ENEMIES ============

@@ -30,6 +30,7 @@ export type InputAction =
     | 'previous_weapon'
     // UI
     | 'pause'
+    | 'toggle_view'
     | 'toggle_inventory'
     | 'toggle_console';
 
@@ -80,7 +81,8 @@ export class InputBindings {
 
         // UI
         this.setBinding('pause', { keyboard: 'Escape' });
-        this.setBinding('toggle_inventory', { keyboard: 'Tab' });
+        this.setBinding('toggle_view', { keyboard: 'KeyV' });
+        this.setBinding('toggle_inventory', { keyboard: 'KeyI' });
         this.setBinding('toggle_console', { keyboard: 'F1' });
     }
 
