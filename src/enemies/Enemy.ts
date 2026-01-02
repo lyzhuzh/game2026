@@ -393,14 +393,13 @@ export class Enemy {
      * Attach loaded model to mesh
      */
     private attachModel(model: THREE.Group | THREE.Object3D, animations: THREE.AnimationClip[] = []): void {
-        this.modelRoot = model as THREE.Group;
-
         // Clear existing children
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];
             this.mesh.remove(child);
         }
 
+        // Add model to scene (ONCE - remove duplicate add below)
         this.mesh.add(model);
 
         // Setup animation mixer and clips
@@ -412,17 +411,20 @@ export class Enemy {
                 this.animations.set(clip.name, clip);
             }
 
-            // Play idle animation by default if available
-            this.playAnimation('idle', true);
+            // IMPORTANT: Do NOT play animation yet!
+            // We need to calculate bounding box from bind pose (T-pose) first
+            // Animation will be played after model is positioned
         }
 
-        // Update skeleton matrices before calculating bounding box
+        // Update skeleton matrices to bind pose before calculating bounding box
         model.updateMatrixWorld(true);
 
-        // Force update all SkinnedMesh bones
+        // Force reset all SkinnedMesh to bind pose for accurate bounding box
         model.traverse((child) => {
             if (child instanceof THREE.SkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
+                // Reset to bind pose (T-pose) for consistent bounding box
+                skinnedMesh.pose();
                 skinnedMesh.updateMatrixWorld(true);
             }
         });
@@ -464,8 +466,8 @@ export class Enemy {
         model.rotation.set(0, 0, 0);
 
         // Debug: log model positioning for problematic enemies
-        const modelHeight = _maxY - minY;
-        console.log(`[Enemy] Model positioning - minY: ${minY.toFixed(3)}, modelHeight: ${modelHeight.toFixed(3)}, groundOffset: ${groundOffset}, finalY: ${(-minY - groundOffset).toFixed(3)}`);
+        const finalModelHeight = _maxY - minY;
+        console.log(`[Enemy] Model positioning - minY: ${minY.toFixed(3)}, modelHeight: ${finalModelHeight.toFixed(3)}, groundOffset: ${groundOffset}, finalY: ${(-minY - groundOffset).toFixed(3)}`);
 
         // Keep original materials, just ensure visibility and shadows
         model.traverse((child) => {
@@ -476,10 +478,15 @@ export class Enemy {
             }
         });
 
-        this.mesh.add(model);
+        // REMOVED: duplicate this.mesh.add(model) and this.modelRoot = model
 
         // Save model root reference for procedural animation
-        this.modelRoot = model;
+        this.modelRoot = model as THREE.Group;
+
+        // NOW play idle animation after model is properly positioned
+        if (animations.length > 0) {
+            this.playAnimation('idle', true);
+        }
     }
 
     /**
