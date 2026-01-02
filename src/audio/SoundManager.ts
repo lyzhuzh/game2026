@@ -686,25 +686,5 @@ export class SoundManager {
         return buffer;
     }
 
-    private createEcho(delay: number, decay: number): AudioNode {
-        if (!this.audioContext || !this.masterGain) {
-            throw new Error('AudioContext not initialized');
-        }
-
-        const now = this.audioContext.currentTime;
-        const delayNode = this.audioContext.createDelay(delay);
-        const feedback = this.audioContext.createGain();
-        const filter = this.audioContext.createBiquadFilter();
-
-        delayNode.delayTime.value = delay;
-        feedback.gain.value = decay;
-        filter.type = 'lowpass';
-        filter.frequency.value = 1000;
-
-        delayNode.connect(feedback);
-        feedback.connect(filter);
-        filter.connect(delayNode);
-
-        return delayNode;
-    }
+    // createEcho method removed - was unused
 }

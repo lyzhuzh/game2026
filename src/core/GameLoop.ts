@@ -98,7 +98,7 @@ export class GameLoop {
         }
 
         // Calculate interpolation alpha (for smooth rendering between physics steps)
-        const alpha = this.accumulator / this.fixedTimeStep;
+        const _alpha = this.accumulator / this.fixedTimeStep;
 
         // Variable update (rendering, animations, etc.)
         this.executeUpdate(frameTime);

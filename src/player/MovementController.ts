@@ -86,7 +86,7 @@ export class MovementController {
         }
 
         // Apply acceleration/deceleration
-        const currentSpeed = this.getFlatSpeed();
+        const _currentSpeed = this.getFlatSpeed();
         const accel = this.isGrounded ? this.acceleration : this.acceleration * this.airControl;
 
         if (hasInput) {

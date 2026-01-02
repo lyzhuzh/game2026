@@ -23,7 +23,7 @@ export class CombatCoordinator extends BaseCoordinator {
     private enemies: EnemyManager;
     private projectiles: ProjectileManager;
     private particles: ParticleSystem;
-    private scene: THREE.Scene;
+    private _scene: THREE.Scene;
 
     // 玩家状态引用
     private playerPosition: THREE.Vector3 = new THREE.Vector3();
@@ -34,7 +34,7 @@ export class CombatCoordinator extends BaseCoordinator {
         this.enemies = config.enemies;
         this.projectiles = config.projectiles;
         this.particles = config.particles;
-        this.scene = config.scene;
+        this._scene = config.scene;
     }
 
     protected async onInitialize(): Promise<void> {

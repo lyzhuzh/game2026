@@ -42,7 +42,7 @@ export class Player {
     /**
      * Update player
      */
-    update(deltaTime: number): void {
+    update(_deltaTime: number): void {
         // Check for death
         if (this.state.health <= 0 && !this.state.isDead) {
             this.die();

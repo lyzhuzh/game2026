@@ -775,9 +775,10 @@
         document.addEventListener('keyup', (e) => {
             window.__debugKeys[e.code] = false;
         });
-        console.log('[Debug] Muzzle flash position adjustment enabled:');
-        console.log('  Arrow Up/Down: Forward distance (while shooting)');
-        console.log('  Arrow Left/Right: Down offset (while shooting)');
+        console.log('[Debug] Third-person weapon adjustment enabled:');
+        console.log('  Arrow keys: position X/Y');
+        console.log('  ,/.: position Z');
+        console.log('  [ ]: rotation X');
     </script>
     <script type="module" src="/src/main.ts"></script>
 </body>

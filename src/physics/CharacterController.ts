@@ -27,7 +27,7 @@ export class CharacterController {
     private walkSpeed: number;
     private sprintSpeed: number;
     private jumpForce: number;
-    private stepHeight: number;
+    private _stepHeight: number;
 
     // Current state
     private isGrounded: boolean = false;
@@ -41,8 +41,8 @@ export class CharacterController {
     private readonly EYE_LEVEL_OFFSET: number = 0.7; // Eyes are 0.7m above body center
 
     // Ground detection
-    private readonly GROUND_CHECK_DISTANCE: number = 0.1;
-    private groundNormal: CANNON.Vec3 = new CANNON.Vec3(0, 1, 0);
+    private readonly _GROUND_CHECK_DISTANCE: number = 0.1;
+    private _groundNormal: CANNON.Vec3 = new CANNON.Vec3(0, 1, 0);
 
     constructor(world: PhysicsWorld, config: CharacterConfig = {}) {
         this.world = world;
@@ -55,7 +55,7 @@ export class CharacterController {
         this.walkSpeed = config.walkSpeed ?? GAME_CONFIG.PLAYER.WALK_SPEED;
         this.sprintSpeed = config.sprintSpeed ?? GAME_CONFIG.PLAYER.SPRINT_SPEED;
         this.jumpForce = config.jumpForce ?? GAME_CONFIG.PLAYER.JUMP_FORCE;
-        this.stepHeight = config.stepHeight ?? 0.3;
+        this._stepHeight = config.stepHeight ?? 0.3;
 
         // Create physics body (cylinder as capsule approximation)
         const shape = new CANNON.Cylinder(radius, radius, height, 8);
@@ -307,7 +307,7 @@ export class CharacterController {
         // Player is treated as a cylinder (capsule)
         // For simplicity, use box approximation for player
         const playerHalfWidth = playerRadius;
-        const playerHalfHeight = playerHeight / 2;
+        const _playerHalfHeight = playerHeight / 2;
 
         // Check X axis
         const xMin = -halfExtents.x - playerHalfWidth;

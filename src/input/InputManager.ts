@@ -3,8 +3,8 @@
  * Centralized input management system
  */
 
-import { KeyboardInput, KeyCodes } from './KeyboardInput';
-import { MouseInput, MouseButtons } from './MouseInput';
+import { KeyboardInput } from './KeyboardInput';
+import { MouseInput } from './MouseInput';
 import { InputBindings, InputAction, inputBindings } from './InputBindings';
 
 export class InputManager {

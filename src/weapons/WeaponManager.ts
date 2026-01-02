@@ -75,12 +75,34 @@ export class WeaponManager {
      * Initialize all weapons
      */
     private initializeWeapons(): void {
-        // Only 5 weapons: pistol, rifle, shotgun, smg, sniper
-        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper'];
+        // Weapon types
+        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper', 'rocket_launcher', 'flamethrower'];
 
-        // Initialize hitscan weapons
+        // Initialize weapons based on type
         for (const type of this.weaponTypes) {
-            const weapon = new HitscanWeapon(type, this.world, this.scene);
+            let weapon: Weapon;
+
+            if (type === 'rocket_launcher') {
+                if (!this.projectileManager) {
+                    console.warn('ProjectileManager not available for RocketLauncher');
+                    continue;
+                }
+                weapon = new RocketLauncher(type, this.world, this.scene, this.projectileManager);
+            } else if (type === 'flamethrower') {
+                if (!this.particleSystem) {
+                    console.warn('ParticleSystem not available for Flamethrower');
+                    continue;
+                }
+                weapon = new Flamethrower(type, this.world, this.scene, this.particleSystem);
+                // Set damage callback for flamethrower
+                if (this.onFlamethrowerDamage) {
+                    (weapon as Flamethrower).setOnDamage(this.onFlamethrowerDamage);
+                }
+            } else {
+                // Default to HitscanWeapon
+                weapon = new HitscanWeapon(type, this.world, this.scene);
+            }
+
             this.weapons.set(type, weapon);
         }
     }
@@ -106,6 +128,13 @@ export class WeaponManager {
             // Call switch callback if weapon changed
             if (previousWeapon !== weapon && this.onSwitch) {
                 this.onSwitch(type);
+            }
+
+            // Update flamethrower reference
+            if (type === 'flamethrower') {
+                this.flamethrower = weapon as Flamethrower;
+            } else {
+                this.flamethrower = undefined;
             }
         }
     }
@@ -133,8 +162,8 @@ export class WeaponManager {
      * Handle weapon switching input
      */
     private handleWeaponSwitching(): void {
-        // Number keys 1-5 for weapon switching (5 weapons only)
-        for (let i = 1; i <= 5; i++) {
+        // Number keys 1-7 for weapon switching
+        for (let i = 1; i <= 7; i++) {
             if (this.input.isActionJustPressed(`weapon_${i}` as any)) {
                 const weaponType = this.weaponTypes[i - 1];
                 if (weaponType) {

@@ -46,6 +46,20 @@ export class PlayerCamera {
     private playerPosition: THREE.Vector3 = new THREE.Vector3();
     private physics?: PhysicsWorld;
 
+    // === Third-person camera position (calibrated) ===
+    // Arrow Up/Down: adjust cameraHeight
+    // Arrow Left/Right: adjust cameraBack
+    private debugCameraHeight: number = 0.45;
+    private debugCameraBack: number = 0.85;
+    private lastCameraDebugTime: number = 0;
+
+    // === Free Debug Camera Mode ===
+    // F9 to toggle, WASD to move, mouse to rotate
+    private debugCameraMode: boolean = false;
+    private debugCameraPosition: THREE.Vector3 = new THREE.Vector3(0, 2, 5);
+    private debugCameraYaw: number = 0;
+    private debugCameraPitch: number = 0;
+
     private readonly input: InputManager;
 
     constructor(config: CameraConfig = {}) {
@@ -77,12 +91,12 @@ export class PlayerCamera {
 
         // Third person configuration
         this.thirdPersonConfig = {
-            distance: 5.0,
-            height: 1.5,
-            pitch: 0.2,
+            distance: 3.5,       // Further back behind player
+            height: 0.5,         // Slightly above pivot
+            pitch: 0.0,          // Level camera
             smoothSpeed: 8.0,
             collisionRadius: 0.3,
-            minDistance: 1.5,
+            minDistance: 1.0,
             ...config.thirdPersonConfig
         };
 
@@ -105,14 +119,28 @@ export class PlayerCamera {
                 this.yaw -= lookInput.x * this.sensitivity;
                 this.pitch -= lookInput.y * this.sensitivity;
 
-                // Clamp pitch to prevent over-rotation
-                this.pitch = Math.max(-this.maxPitchAngle, Math.min(this.maxPitchAngle, this.pitch));
+                // Clamp pitch based on view mode
+                // Third-person: limit upward looking to prevent seeing under character
+                if (this.viewMode === ViewMode.THIRD_PERSON) {
+                    // Max look up: 45 degrees (0.785 radians)
+                    // Max look down: 60 degrees (1.05 radians)
+                    this.pitch = Math.max(-1.05, Math.min(0.785, this.pitch));
+                } else {
+                    // First-person: normal limits
+                    this.pitch = Math.max(-this.maxPitchAngle, Math.min(this.maxPitchAngle, this.pitch));
+                }
 
                 this.updateCameraRotation();
             }
         }
 
         // Update camera position based on view mode
+        // If debug camera is enabled, use it instead
+        if (this.debugCameraMode) {
+            this.updateDebugCamera(deltaTime);
+            return;
+        }
+
         if (this.viewMode === ViewMode.FIRST_PERSON) {
             this.updateFirstPersonPosition();
         } else {
@@ -161,63 +189,92 @@ export class PlayerCamera {
      * - Raycast collision detection (anti-wall penetration)
      */
     private updateThirdPersonPosition(deltaTime: number): void {
-        // Spring Arm parameters
-        const armLength = this.thirdPersonConfig.distance;  // "Selfie stick" length
-        const pivotHeight = 1.4;   // Pivot point height (shoulder level, about 1.4m above feet)
-        const rightOffset = 0.4;   // Slight offset to the right (over right shoulder)
+        // === DEBUG: Camera position adjustment (DISABLED) ===
+        // this.handleCameraDebugInput();
 
-        // Pivot point: at player's shoulder level
-        const playerFeetY = this.playerPosition.y - 1.6; // Approximate feet position
-        const pivotPoint = new THREE.Vector3(
-            this.playerPosition.x,
-            playerFeetY + pivotHeight,
-            this.playerPosition.z
+        // Third-person camera parameters
+        const cameraHeight = this.debugCameraHeight;
+        const cameraBack = this.debugCameraBack;
+        const lookAheadDistance = 5.0;
+
+        // Calculate camera offset based on yaw AND pitch
+        // Pitch affects vertical position: positive pitch = look up, camera goes lower
+        // Negative pitch = look down, camera goes higher
+        const pitchCos = Math.cos(this.pitch);
+        const pitchSin = Math.sin(this.pitch);
+
+        // Camera position orbits around player based on yaw and pitch
+        const horizontalDistance = cameraBack * pitchCos;
+        const verticalOffset = cameraHeight - cameraBack * pitchSin;
+
+        const targetPos = new THREE.Vector3(
+            this.playerPosition.x - Math.sin(this.yaw) * horizontalDistance,
+            this.playerPosition.y + verticalOffset,
+            this.playerPosition.z - Math.cos(this.yaw) * horizontalDistance
         );
 
-        // Calculate camera position using spherical coordinates around pivot
-        // Yaw: horizontal rotation (left/right)
-        // Pitch: vertical rotation (up/down)
-
-        // Camera direction from pivot (the "spring arm" direction)
-        // Using spherical coordinates: 
-        // - theta (yaw): angle in XZ plane, 0 = facing +Z
-        // - phi (pitch): angle from horizontal, 0 = horizontal, negative = looking up
-
-        const horizontalDist = armLength * Math.cos(this.pitch);
-        const verticalOffset = armLength * Math.sin(-this.pitch); // Negative because looking down is positive pitch
-
-        // Camera position relative to pivot
-        // The camera is BEHIND the pivot, opposite to where the character looks
-        const cameraOffset = new THREE.Vector3(
-            -Math.sin(this.yaw) * horizontalDist + Math.cos(this.yaw) * rightOffset,
-            verticalOffset + this.thirdPersonConfig.height,
-            -Math.cos(this.yaw) * horizontalDist - Math.sin(this.yaw) * rightOffset
-        );
-
-        // Target camera position (before collision check)
-        const targetPos = pivotPoint.clone().add(cameraOffset);
-
-        // Collision detection: Raycast from pivot to target camera position
-        // If wall detected, shorten the arm length
+        // Collision detection
         const finalPos = this.checkCameraCollision(targetPos);
 
-        // Smooth camera movement with Lerp (creates "weight" and smooth feel)
+        // Smooth camera movement with Lerp
         const lerpSpeed = this.thirdPersonConfig.smoothSpeed * deltaTime;
         this.camera.position.lerp(finalPos, Math.min(lerpSpeed, 1.0));
 
-        // Camera always looks at the pivot point (character's shoulder)
-        this.camera.lookAt(pivotPoint);
+        // Camera looks at player position with pitch offset
+        // lookAt target height changes based on pitch
+        const lookAtHeight = this.playerPosition.y + lookAheadDistance * pitchSin * 0.5;
+        const lookAtTarget = new THREE.Vector3(
+            this.playerPosition.x + Math.sin(this.yaw) * lookAheadDistance * pitchCos,
+            lookAtHeight,
+            this.playerPosition.z + Math.cos(this.yaw) * lookAheadDistance * pitchCos
+        );
+        this.camera.lookAt(lookAtTarget);
 
-        // Debug logging
-        if (Math.random() < 0.01) {
-            const dist = this.camera.position.distanceTo(pivotPoint);
-            console.log(`[SpringArm] Distance: ${dist.toFixed(1)}m, Pitch: ${(this.pitch * 180 / Math.PI).toFixed(0)}°`);
-        }
-
-        // Apply camera shake
+        // Camera shake
         if (this.shakeOffset.lengthSq() > 0.0001) {
             this.camera.position.add(this.shakeOffset);
         }
+    }
+
+    /**
+     * DEBUG: Handle third-person camera position adjustment
+     * Arrow Up/Down: adjust height
+     * Arrow Left/Right: adjust back distance
+     */
+    private handleCameraDebugInput(): void {
+        const debugKeys = (window as any).__debugKeys;
+        if (!debugKeys) return;
+
+        const step = 0.05;
+        const now = Date.now();
+        if (now - this.lastCameraDebugTime < 100) return;
+
+        // Up/Down = camera height
+        if (debugKeys.ArrowUp) {
+            this.debugCameraHeight += step;
+            this.lastCameraDebugTime = now;
+            this.logCameraPosition();
+        }
+        if (debugKeys.ArrowDown) {
+            this.debugCameraHeight = Math.max(0.1, this.debugCameraHeight - step);
+            this.lastCameraDebugTime = now;
+            this.logCameraPosition();
+        }
+        // Left/Right = back distance
+        if (debugKeys.ArrowRight) {
+            this.debugCameraBack += step;
+            this.lastCameraDebugTime = now;
+            this.logCameraPosition();
+        }
+        if (debugKeys.ArrowLeft) {
+            this.debugCameraBack = Math.max(0, this.debugCameraBack - step);
+            this.lastCameraDebugTime = now;
+            this.logCameraPosition();
+        }
+    }
+
+    private logCameraPosition(): void {
+        console.log(`[CameraDebug] Height: ${this.debugCameraHeight.toFixed(2)}, Back: ${this.debugCameraBack.toFixed(2)}`);
     }
 
 
@@ -228,18 +285,23 @@ export class PlayerCamera {
     private checkCameraCollision(targetPos: THREE.Vector3): THREE.Vector3 {
         if (!this.physics) return targetPos;
 
-        // Raycast from player to target camera position
+        // Raycast from player (slightly higher) to target camera position
         const from = new CANNON.Vec3(
             this.playerPosition.x,
-            this.playerPosition.y + 0.5,
+            this.playerPosition.y + 1.2, // Move higher to avoid body/weapon collision
             this.playerPosition.z
         );
         const to = new CANNON.Vec3(targetPos.x, targetPos.y, targetPos.z);
 
-        const result = this.physics.raycast(from, to);
+        const result = this.physics.raycast(from, to, {
+            collisionFilterMask: 1, // Only collide with DEFAULT layer (environment), ignore others
+            skipBackfaces: true
+        });
 
         if (result && result.hasHit) {
-            const distance = result.distance || 0;
+            const distance = result.distance;
+            // Only adjust if distance is very different (avoid micro-jitter)
+            if (distance < 0.2) return targetPos; // Ignore very close hits (likely self)
 
             // If collision detected and distance is greater than minimum
             if (distance > this.thirdPersonConfig.minDistance) {
@@ -331,11 +393,21 @@ export class PlayerCamera {
 
     /**
      * Get forward direction on the horizontal plane (Y = 0)
-     * Uses Three.js camera convention: default forward is -Z
+     * In first-person: camera faces -Z when yaw=0
+     * In third-person: forward matches the lookAt direction (what the camera is looking at)
      */
     getFlatForward(): THREE.Vector3 {
-        // When yaw=0, camera faces -Z, so forward = (0, 0, -1)
-        // When yaw rotates, forward rotates around Y axis
+        // In third-person, forward is the direction the camera is looking at
+        // which is (+sin, 0, +cos) based on lookAt calculation in updateThirdPersonPosition
+        // In first-person, forward is traditional -Z when yaw=0, so (-sin, 0, -cos)
+        if (this.viewMode === ViewMode.THIRD_PERSON) {
+            return new THREE.Vector3(
+                Math.sin(this.yaw),
+                0,
+                Math.cos(this.yaw)
+            );
+        }
+        // First-person: camera faces -Z when yaw=0
         return new THREE.Vector3(
             -Math.sin(this.yaw),
             0,
@@ -345,11 +417,33 @@ export class PlayerCamera {
 
     /**
      * Get right direction on the horizontal plane (Y = 0)
-     * Uses Three.js camera convention
+     * Must be consistent with getFlatForward
      */
     getFlatRight(): THREE.Vector3 {
-        // Right = cross(up, forward)
-        // When yaw=0, forward=-Z, up=Y, so right = Y x (-Z) = X = (1, 0, 0)
+        // Right is perpendicular to forward (90 degrees clockwise when viewed from above)
+        // For forward = (sin(yaw), 0, cos(yaw)), right should be (cos(yaw), 0, -sin(yaw))
+        // For forward = (-sin(yaw), 0, -cos(yaw)), right should be (-cos(yaw), 0, sin(yaw))
+        // BUT we need to verify: in third-person, if camera looks at +Z when yaw=0,
+        // then right should be +X direction, which is (1, 0, 0)
+        // cos(0) = 1, sin(0) = 0, so (cos, 0, -sin) = (1, 0, 0) ✓
+        // The issue is that A key gives negative x, D gives positive x
+        // With right = (1,0,0), pressing D adds +right = moves to +X = correct
+        // But the user reports A/D are swapped, so maybe X direction is wrong for third-person camera orientation
+
+        // After analysis: third-person camera is BEHIND the player looking at player
+        // So when player faces +Z (yaw=0), camera is at -Z looking at +Z
+        // "Right" for player should be the same as screen right
+        // The current implementation is correct for first-person but wrong for third-person
+
+        if (this.viewMode === ViewMode.THIRD_PERSON) {
+            // For third-person: negate the X component to fix left/right
+            return new THREE.Vector3(
+                -Math.cos(this.yaw),
+                0,
+                Math.sin(this.yaw)
+            );
+        }
+        // First-person
         return new THREE.Vector3(
             Math.cos(this.yaw),
             0,
@@ -469,6 +563,93 @@ export class PlayerCamera {
      */
     getZoomMultiplier(): number {
         return this.baseFov / this.currentFov;
+    }
+
+    /**
+     * Toggle free debug camera mode
+     * In debug mode: camera is free to move, WASD moves camera, mouse rotates
+     */
+    toggleDebugCamera(): void {
+        this.debugCameraMode = !this.debugCameraMode;
+        if (this.debugCameraMode) {
+            // Initialize debug camera at current camera position
+            this.debugCameraPosition.copy(this.camera.position);
+            this.debugCameraYaw = this.yaw;
+            this.debugCameraPitch = this.pitch;
+            console.log('[PlayerCamera] FREE DEBUG CAMERA: ENABLED');
+            console.log('  WASD: Move camera');
+            console.log('  Mouse: Rotate camera');
+            console.log('  F9: Exit debug mode');
+        } else {
+            console.log('[PlayerCamera] FREE DEBUG CAMERA: DISABLED');
+        }
+    }
+
+    /**
+     * Check if debug camera is enabled
+     */
+    isDebugCameraEnabled(): boolean {
+        return this.debugCameraMode;
+    }
+
+    /**
+     * Update debug camera (called from update when debug mode is on)
+     */
+    private updateDebugCamera(deltaTime: number): void {
+        if (!this.debugCameraMode) return;
+
+        // Mouse rotation (reuse normal sensitivity)
+        if (this.input.isPointerLocked()) {
+            const lookInput = this.input.getLookInput();
+            if (lookInput.x !== 0 || lookInput.y !== 0) {
+                this.debugCameraYaw -= lookInput.x * this.sensitivity;
+                this.debugCameraPitch -= lookInput.y * this.sensitivity;
+                // Clamp pitch
+                this.debugCameraPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, this.debugCameraPitch));
+            }
+        }
+
+        // WASD movement
+        const moveSpeed = 5.0 * deltaTime;
+        const debugKeys = (window as any).__debugKeys || {};
+
+        // Calculate forward and right vectors based on debug camera rotation
+        const forward = new THREE.Vector3(
+            Math.sin(this.debugCameraYaw) * Math.cos(this.debugCameraPitch),
+            Math.sin(this.debugCameraPitch),
+            Math.cos(this.debugCameraYaw) * Math.cos(this.debugCameraPitch)
+        );
+        const right = new THREE.Vector3(
+            Math.cos(this.debugCameraYaw),
+            0,
+            -Math.sin(this.debugCameraYaw)
+        );
+
+        // Check movement keys (checking both code and common alternatives)
+        if (debugKeys.KeyW || this.input.isActionPressed('move_forward')) {
+            this.debugCameraPosition.add(forward.clone().multiplyScalar(moveSpeed));
+        }
+        if (debugKeys.KeyS || this.input.isActionPressed('move_backward')) {
+            this.debugCameraPosition.add(forward.clone().multiplyScalar(-moveSpeed));
+        }
+        if (debugKeys.KeyA || this.input.isActionPressed('move_left')) {
+            this.debugCameraPosition.add(right.clone().multiplyScalar(-moveSpeed));
+        }
+        if (debugKeys.KeyD || this.input.isActionPressed('move_right')) {
+            this.debugCameraPosition.add(right.clone().multiplyScalar(moveSpeed));
+        }
+        // Q/E for up/down
+        if (debugKeys.KeyQ) {
+            this.debugCameraPosition.y -= moveSpeed;
+        }
+        if (debugKeys.KeyE) {
+            this.debugCameraPosition.y += moveSpeed;
+        }
+
+        // Apply to camera
+        this.camera.position.copy(this.debugCameraPosition);
+        const euler = new THREE.Euler(this.debugCameraPitch, this.debugCameraYaw, 0, 'YXZ');
+        this.camera.quaternion.setFromEuler(euler);
     }
 
     /**

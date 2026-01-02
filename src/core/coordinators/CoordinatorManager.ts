@@ -5,10 +5,6 @@
 
 import { ICoordinator } from './BaseCoordinator';
 import { EventBus } from '../EventBus';
-import { PhysicsCoordinator } from './PhysicsCoordinator';
-import { CombatCoordinator } from './CombatCoordinator';
-import { AICoordinator } from './AICoordinator';
-import { RenderCoordinator } from './RenderCoordinator';
 import { Game } from '../Game';
 
 /**
@@ -17,11 +13,11 @@ import { Game } from '../Game';
 export class CoordinatorManager {
     private coordinators: Map<string, ICoordinator> = new Map();
     private eventBus: EventBus;
-    private game: Game;
+    private _game: Game;
     private isInitialized: boolean = false;
 
     constructor(game: Game, eventBus: EventBus) {
-        this.game = game;
+        this._game = game;
         this.eventBus = eventBus;
     }
 
@@ -59,7 +55,7 @@ export class CoordinatorManager {
         // 按依赖顺序初始化协调器
         const initOrder = Array.from(this.coordinators.entries());
 
-        for (const [name, coordinator] of initOrder) {
+        for (const [_name, coordinator] of initOrder) {
             await coordinator.initialize();
         }
 

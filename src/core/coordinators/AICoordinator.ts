@@ -15,15 +15,15 @@ export interface AICoordinatorConfig extends CoordinatorConfig {
 }
 
 export class AICoordinator extends BaseCoordinator {
-    private enemyManager: EnemyManager;
-    private scene: THREE.Scene;
+    private _enemyManager: EnemyManager;
+    private _scene: THREE.Scene;
     private spatialGrid: SpatialGrid;
-    private playerPosition: THREE.Vector3 = new THREE.Vector3();
+    private _playerPosition: THREE.Vector3 = new THREE.Vector3();
 
     constructor(config: AICoordinatorConfig) {
         super(config);
-        this.enemyManager = config.enemyManager;
-        this.scene = config.scene;
+        this._enemyManager = config.enemyManager;
+        this._scene = config.scene;
 
         // 初始化空间分区
         this.spatialGrid = new SpatialGrid(GAME_CONFIG.enemy.detectionRange);
@@ -37,7 +37,7 @@ export class AICoordinator extends BaseCoordinator {
         this.eventBus.on('enemy:died', (data) => this.onEnemyDied(data));
     }
 
-    protected onUpdate(deltaTime: number): void {
+    protected onUpdate(_deltaTime: number): void {
         // 更新空间分区中的敌人位置
         this.updateSpatialGrid();
 
@@ -59,7 +59,7 @@ export class AICoordinator extends BaseCoordinator {
      * 设置玩家位置
      */
     setPlayerPosition(position: THREE.Vector3): void {
-        this.playerPosition.copy(position);
+        this._playerPosition.copy(position);
     }
 
     /**
@@ -87,7 +87,7 @@ export class AICoordinator extends BaseCoordinator {
     /**
      * 敌人生成事件
      */
-    private onEnemySpawned(data: any): void {
+    private onEnemySpawned(_data: any): void {
         // 可以在空间分区中注册敌人
         // if (data.enemy && data.enemy.position) {
         //     this.spatialGrid.insert({
@@ -100,7 +100,7 @@ export class AICoordinator extends BaseCoordinator {
     /**
      * 敌人死亡事件
      */
-    private onEnemyDied(data: any): void {
+    private onEnemyDied(_data: any): void {
         // 从空间分区中移除敌人
         // if (data.enemy && data.enemy.id) {
         //     this.spatialGrid.removeById(data.enemy.id);

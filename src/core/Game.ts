@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { GameLoop } from './GameLoop';
 import { Time } from './Time';
 import { GAME_CONFIG } from '../constants/GameConstants';
@@ -381,6 +380,9 @@ export class Game {
         console.log('[Game] Initializing debug tools...');
         this.debugTools.initialize();
 
+        // Setup animation debug keyboard listener (F10 to toggle, then 1-9, +/-, P, [/] for controls)
+        this.setupAnimationDebugListener();
+
         // Register game loop callbacks
         this.gameLoop.onFixedUpdate((deltaTime) => this.onFixedUpdate(deltaTime));
         this.gameLoop.onUpdate((deltaTime) => this.onUpdate(deltaTime));
@@ -388,6 +390,15 @@ export class Game {
 
         this.isInitialized = true;
         console.log('Game initialized successfully');
+    }
+
+    /**
+     * Setup third-person camera calibration debug
+     * DISABLED per user request
+     */
+    private setupAnimationDebugListener(): void {
+        console.log('[Game] Animation debug listener disabled.');
+        // Debug features disabled
     }
 
     /**
@@ -477,7 +488,21 @@ export class Game {
         this.playerCamera.update(deltaTime);
 
         // Get input for character controller
-        const movementInput = this.input.getMovementInput();
+        let movementInput = this.input.getMovementInput();
+
+        // Get action inputs
+        let jumpRequested = this.input.isActionJustPressed('jump');
+        let sprintRequested = this.input.isActionPressed('sprint');
+        let crouchRequested = this.input.isActionPressed('crouch');
+
+        // BLOCK PLAYER MOVEMENT when in Free Debug Camera mode
+        if (this.playerCamera.isDebugCameraEnabled()) {
+            movementInput = { x: 0, y: 0 };
+            jumpRequested = false;
+            sprintRequested = false;
+            crouchRequested = false;
+        }
+
         const moveDirection = new THREE.Vector3(movementInput.x, 0, movementInput.y);
 
         // Transform movement direction by camera direction
@@ -486,11 +511,6 @@ export class Game {
         const worldMoveDir = new THREE.Vector3();
         worldMoveDir.addScaledVector(forward, moveDirection.z);
         worldMoveDir.addScaledVector(right, moveDirection.x);
-
-        // Get action inputs
-        const jumpRequested = this.input.isActionJustPressed('jump');
-        const sprintRequested = this.input.isActionPressed('sprint');
-        const crouchRequested = this.input.isActionPressed('crouch');
 
         // Update character controller with physics
         this.character.update(
@@ -501,17 +521,20 @@ export class Game {
             crouchRequested
         );
 
-        // Update camera position to follow character eyes
-        const eyePos = this.character.getEyePosition();
-        this.playerPosition.copy(eyePos);
-        this.playerCamera.setPosition(this.playerPosition);
+        // Update camera position to follow character eyes (ONLY if NOT in debug camera mode)
+        // In debug mode, camera moves independently
+        if (!this.playerCamera.isDebugCameraEnabled()) {
+            const eyePos = this.character.getEyePosition();
+            this.playerPosition.copy(eyePos);
+            this.playerCamera.setPosition(this.playerPosition);
+        }
 
         // 检测玩家移动并播放脚步声
         this.updatePlayerFootsteps(deltaTime, movementInput.x !== 0 || movementInput.y !== 0);
 
         // Update player model (sync position/rotation with camera)
         if (this.playerModel) {
-            const rotation = this.playerCamera.getRotation();
+            const cameraRotation = this.playerCamera.getRotation();
             // Physics body position is at center, convert to feet position for model
             const bodyPos = this.character.getPosition();
             const feetPos = new THREE.Vector3(bodyPos.x, bodyPos.y - this.character.getCurrentHeight() / 2, bodyPos.z);
@@ -527,7 +550,24 @@ export class Game {
                 moveState = sprintRequested ? 'run' : 'walk';
             }
 
-            this.playerModel.update(deltaTime, feetPos, rotation, moveState);
+            // Calculate rotation based on view mode
+            let modelRotation = { yaw: cameraRotation.yaw };
+
+            // In third-person, player model should face movement direction (away from camera)
+            if (this.playerCamera.getViewMode() === ViewMode.THIRD_PERSON && isMoving) {
+                // Calculate movement direction in world space
+                // W=forward(0,1), A=left(-1,0), S=back(0,-1), D=right(1,0)
+                const moveAngle = Math.atan2(movementInput.x, movementInput.y);
+
+                // Model rotation = camera direction + movement offset
+                modelRotation.yaw = cameraRotation.yaw + moveAngle;
+            }
+            // When not moving, keep camera yaw (face away from camera by default)
+
+            this.playerModel.update(deltaTime, feetPos, modelRotation, moveState);
+
+            // Update weapon renderer with player position for third-person weapon following
+            this.weaponRenderer.setPlayerTransform(feetPos, cameraRotation.yaw);
         }
 
         // Handle view mode toggle (Tab key)
@@ -860,8 +900,8 @@ export class Game {
         // Calculate camera's local down vector: cross(forward, right) gives up, so we negate
         const cameraDown = new THREE.Vector3().crossVectors(fireDirection, cameraRight).normalize();
 
-        // === DEBUG: Handle muzzle flash position adjustment ===
-        this.handleMuzzleFlashDebug();
+        // === DEBUG: Muzzle flash position adjustment (DISABLED) ===
+        // this.handleMuzzleFlashDebug();
 
         // Position muzzle flash in front of camera, below crosshair (follows camera pitch)
         fireOrigin.addScaledVector(fireDirection, this.muzzleFlashForward);
@@ -876,7 +916,7 @@ export class Game {
      * Arrow Left/Right: adjust down distance
      * Press to log current values
      */
-    private handleMuzzleFlashDebug(): void {
+    private _handleMuzzleFlashDebug(): void {
         const debugKeys = (window as any).__debugKeys;
         if (!debugKeys) return;
 

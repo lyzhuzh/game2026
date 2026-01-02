@@ -4,7 +4,6 @@
  */
 
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -235,7 +234,7 @@ export class Enemy {
 
         // Handle SkinnedMesh - update skeleton to use cloned bones
         clone.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if (child instanceof THREE.SkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 const originalSkeleton = skinnedMesh.skeleton;
 
@@ -297,7 +296,7 @@ export class Enemy {
 
         // Force update all SkinnedMesh bones
         model.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if (child instanceof THREE.SkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 skinnedMesh.updateMatrixWorld(true);
             }
@@ -321,7 +320,7 @@ export class Enemy {
 
         // Force update all SkinnedMesh bones and matrices
         model.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if (child instanceof THREE.SkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 skinnedMesh.updateMatrixWorld(true);
             }
@@ -330,7 +329,7 @@ export class Enemy {
         // Recalculate bounding box after scaling to position model on ground
         const scaledBox = new THREE.Box3().setFromObject(model);
         const minY = scaledBox.min.y;
-        const maxY = scaledBox.max.y;
+        const _maxY = scaledBox.max.y;
 
         // Position model so its bottom is at y=0 (on the ground)
         // For SkinnedMesh, the bounding box may not reflect actual feet position
@@ -357,7 +356,7 @@ export class Enemy {
     /**
      * Get model bounding box for debugging
      */
-    private getBoundingBox(model: THREE.Object3D): { size: THREE.Vector3, center: THREE.Vector3 } {
+    private _getBoundingBox(model: THREE.Object3D): { size: THREE.Vector3, center: THREE.Vector3 } {
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         const center = new THREE.Vector3();
@@ -501,7 +500,7 @@ export class Enemy {
     /**
      * Update procedural animation (simple bob/bounce when moving)
      */
-    private updateProceduralAnimation(): void {
+    private _updateProceduralAnimation(): void {
         if (!this.modelRoot || this.isDead) return;
 
         const isMoving = this.state === 'chase' || this.state === 'patrol';
@@ -619,7 +618,7 @@ export class Enemy {
     /**
      * Idle state
      */
-    private updateIdle(deltaTime: number): void {
+    private updateIdle(_deltaTime: number): void {
         // Do nothing, wait for player detection
     }
 
@@ -713,7 +712,7 @@ export class Enemy {
     /**
      * Chase state
      */
-    private updateChase(deltaTime: number, playerPosition: THREE.Vector3): void {
+    private updateChase(_deltaTime: number, playerPosition: THREE.Vector3): void {
         const currentPos = new THREE.Vector3(
             this.physicsBody.body.position.x,
             this.physicsBody.body.position.y,
@@ -740,7 +739,7 @@ export class Enemy {
     /**
      * Attack state
      */
-    private updateAttack(deltaTime: number, playerPosition: THREE.Vector3): void {
+    private updateAttack(_deltaTime: number, playerPosition: THREE.Vector3): void {
         // Face player
         this.faceTarget(playerPosition);
 
@@ -803,7 +802,7 @@ export class Enemy {
     /**
      * Attack player
      */
-    private attack(playerPosition: THREE.Vector3): void {
+    private attack(_playerPosition: THREE.Vector3): void {
         // Call attack callback to damage player
         if (this.onAttackCallback) {
             this.onAttackCallback(this.stats.damage);

@@ -132,7 +132,15 @@ export class PhysicsWorld {
      * @param to - End position
      * @returns Raycast result or null
      */
-    raycast(from: CANNON.Vec3, to: CANNON.Vec3): CANNON.RaycastResult | null {
+    /**
+     * Raycast test - mixed approach for maximum compatibility
+     * Uses Cannon.js for static bodies, custom check for dynamic bodies (enemies)
+     * @param from - Start position
+     * @param to - End position
+     * @param options - Raycast options
+     * @returns Raycast result or null
+     */
+    raycast(from: CANNON.Vec3, to: CANNON.Vec3, options: { collisionFilterMask?: number, skipBackfaces?: boolean } = {}): CANNON.RaycastResult | null {
         // Calculate direction
         const direction = to.vsub(from);
         direction.normalize();
@@ -144,11 +152,11 @@ export class PhysicsWorld {
 
         // Mode: closest hit
         ray.mode = CANNON.Ray.CLOSEST;
-        ray.skipBackfaces = true;
+        ray.skipBackfaces = options.skipBackfaces ?? true;
 
-        // Set collision filter to detect ALL bodies
+        // Set collision filter
         ray.collisionFilterGroup = 1;
-        ray.collisionFilterMask = -1;
+        ray.collisionFilterMask = options.collisionFilterMask ?? -1;
 
         // Perform raycast against the world (for static bodies like walls)
         ray.intersectWorld(this.world, result);

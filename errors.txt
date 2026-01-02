@@ -1,0 +1,96 @@
+src/audio/SoundManager.ts(689,13): error TS6133: 'createEcho' is declared but its value is never read.
+src/audio/SoundManager.ts(694,15): error TS6133: 'now' is declared but its value is never read.
+src/core/coordinators/AICoordinator.ts(18,13): error TS6133: 'enemyManager' is declared but its value is never read.
+src/core/coordinators/AICoordinator.ts(19,13): error TS6133: 'scene' is declared but its value is never read.
+src/core/coordinators/AICoordinator.ts(40,24): error TS6133: 'deltaTime' is declared but its value is never read.
+src/core/coordinators/AICoordinator.ts(90,28): error TS6133: 'data' is declared but its value is never read.
+src/core/coordinators/AICoordinator.ts(103,25): error TS6133: 'data' is declared but its value is never read.
+src/core/coordinators/BaseCoordinator.ts(6,1): error TS6133: 'THREE' is declared but its value is never read.
+src/core/coordinators/BaseCoordinator.ts(124,24): error TS6133: 'deltaTime' is declared but its value is never read.
+src/core/coordinators/CombatCoordinator.ts(26,13): error TS6133: 'scene' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(8,1): error TS6133: 'PhysicsCoordinator' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(9,1): error TS6133: 'CombatCoordinator' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(10,1): error TS6133: 'AICoordinator' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(11,1): error TS6133: 'RenderCoordinator' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(20,13): error TS6133: 'game' is declared but its value is never read.
+src/core/coordinators/CoordinatorManager.ts(62,21): error TS6133: 'name' is declared but its value is never read.
+src/core/coordinators/index.ts(5,27): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/index.ts(5,41): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/index.ts(6,30): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/index.ts(7,29): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/index.ts(8,25): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/index.ts(9,29): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+src/core/coordinators/PhysicsCoordinator.ts(25,15): error TS2416: Property 'onInitialize' in type 'PhysicsCoordinator' is not assignable to the same property in base type 'BaseCoordinator'.
+  Type '() => void' is not assignable to type '() => Promise<void>'.
+    Type 'void' is not assignable to type 'Promise<void>'.
+src/core/coordinators/PhysicsCoordinator.ts(31,24): error TS6133: 'deltaTime' is declared but its value is never read.
+src/core/coordinators/RenderCoordinator.ts(10,1): error TS6133: 'GAME_CONFIG' is declared but its value is never read.
+src/core/coordinators/RenderCoordinator.ts(130,23): error TS6133: 'deltaTime' is declared but its value is never read.
+src/core/DebugTools.ts(63,13): error TS6133: 'distanceLines' is declared but its value is never read.
+src/core/Game.ts(2,1): error TS6133: 'CANNON' is declared but its value is never read.
+src/core/Game.ts(896,13): error TS6133: 'handleMuzzleFlashDebug' is declared but its value is never read.
+src/core/GameLoop.ts(101,15): error TS6133: 'alpha' is declared but its value is never read.
+src/enemies/Enemy.ts(7,1): error TS6133: 'CANNON' is declared but its value is never read.
+src/enemies/Enemy.ts(203,34): error TS2345: Argument of type 'Object3D<Object3DEventMap>' is not assignable to parameter of type 'Group<Object3DEventMap>'.
+  Property 'isGroup' is missing in type 'Object3D<Object3DEventMap>' but required in type 'Group<Object3DEventMap>'.
+src/enemies/Enemy.ts(238,39): error TS2339: Property 'isSkinnedMesh' does not exist on type 'Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>'.
+src/enemies/Enemy.ts(300,39): error TS2339: Property 'isSkinnedMesh' does not exist on type 'Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>'.
+src/enemies/Enemy.ts(324,39): error TS2339: Property 'isSkinnedMesh' does not exist on type 'Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>'.
+src/enemies/Enemy.ts(333,15): error TS6133: 'maxY' is declared but its value is never read.
+src/enemies/Enemy.ts(360,13): error TS6133: 'getBoundingBox' is declared but its value is never read.
+src/enemies/Enemy.ts(504,13): error TS6133: 'updateProceduralAnimation' is declared but its value is never read.
+src/enemies/Enemy.ts(622,24): error TS6133: 'deltaTime' is declared but its value is never read.
+src/enemies/Enemy.ts(716,25): error TS6133: 'deltaTime' is declared but its value is never read.
+src/enemies/Enemy.ts(743,26): error TS6133: 'deltaTime' is declared but its value is never read.
+src/enemies/Enemy.ts(806,20): error TS6133: 'playerPosition' is declared but its value is never read.
+src/input/InputManager.ts(6,25): error TS6133: 'KeyCodes' is declared but its value is never read.
+src/input/InputManager.ts(7,22): error TS6133: 'MouseButtons' is declared but its value is never read.
+src/items/Item.ts(46,19): error TS6133: 'group' is declared but its value is never read.
+src/items/Item.ts(48,19): error TS6133: 'verticalBar' is declared but its value is never read.
+src/items/Item.ts(59,19): error TS6133: 'horizontalBar' is declared but its value is never read.
+src/items/ItemManager.ts(7,16): error TS2459: Module '"./Item"' declares 'ItemType' locally, but it is not exported.
+src/particles/ParticleSystem.ts(14,13): error TS6133: 'camera' is declared but its value is never read.
+src/physics/CharacterController.ts(30,13): error TS6133: 'stepHeight' is declared but its value is never read.
+src/physics/CharacterController.ts(44,22): error TS6133: 'GROUND_CHECK_DISTANCE' is declared but its value is never read.
+src/physics/CharacterController.ts(45,13): error TS6133: 'groundNormal' is declared but its value is never read.
+src/physics/CharacterController.ts(310,15): error TS6133: 'playerHalfHeight' is declared but its value is never read.
+src/physics/CollisionShapes.ts(77,15): error TS6133: 'size' is declared but its value is never read.
+src/physics/PhysicsBody.ts(23,13): error TS6133: 'syncMeshToPhysics' is declared but its value is never read.
+src/physics/PhysicsBody.ts(31,26): error TS2724: '"cannon-es"' has no exported member named 'BodyTypes'. Did you mean 'BodyType'?
+src/physics/PhysicsWorld.ts(34,27): error TS2339: Property 'iterations' does not exist on type 'Solver'.
+src/physics/PhysicsWorld.ts(35,27): error TS2339: Property 'tolerance' does not exist on type 'Solver'.
+src/physics/PhysicsWorld.ts(154,40): error TS2559: Type 'RaycastResult' has no properties in common with type 'RayOptions'.
+src/physics/PhysicsWorld.ts(169,17): error TS18047: 'body' is possibly 'null'.
+src/physics/PhysicsWorld.ts(169,56): error TS18047: 'body' is possibly 'null'.
+src/physics/PhysicsWorld.ts(174,17): error TS18047: 'body' is possibly 'null'.
+src/physics/PhysicsWorld.ts(175,17): error TS18047: 'body' is possibly 'null'.
+src/physics/SpatialGrid.ts(294,40): error TS2341: Property 'cellSize' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(295,40): error TS2341: Property 'cellSize' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(296,40): error TS2341: Property 'cellSize' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(311,19): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(312,18): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(315,14): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(316,14): error TS2341: Property 'entities' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(317,14): error TS2341: Property 'positionCache' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(321,34): error TS2341: Property 'positionCache' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(331,22): error TS2341: Property 'positionCache' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(335,34): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(339,26): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(349,27): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(354,22): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(358,14): error TS2341: Property 'entities' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(359,14): error TS2341: Property 'positionCache' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(366,14): error TS2341: Property 'queryCount' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(368,52): error TS2341: Property 'cellSize' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(383,39): error TS2341: Property 'grid' is private and only accessible within class 'SpatialGrid'.
+src/physics/SpatialGrid.ts(393,38): error TS2341: Property 'hitCount' is private and only accessible within class 'SpatialGrid'.
+src/player/MovementController.ts(89,15): error TS6133: 'currentSpeed' is declared but its value is never read.
+src/player/Player.ts(45,12): error TS6133: 'deltaTime' is declared but its value is never read.
+src/player/PlayerCamera.ts(212,13): error TS6133: 'handleCameraDebugInput' is declared but its value is never read.
+src/utils/ObjectPool.ts(20,1): error TS6133: 'GAME_CONFIG' is declared but its value is never read.
+src/utils/ObjectPool.ts(232,21): error TS6133: 'obj' is declared but its value is never read.
+src/utils/ObjectPool.ts(239,23): error TS6133: 'obj' is declared but its value is never read.
+src/weapons/WeaponManager.ts(13,1): error TS6133: 'RocketLauncher' is declared but its value is never read.
+src/weapons/WeaponManager.ts(38,13): error TS6133: 'projectileManager' is declared but its value is never read.
+src/weapons/WeaponManager.ts(39,13): error TS6133: 'particleSystem' is declared but its value is never read.
+src/weapons/WeaponManager.ts(40,13): error TS6133: 'onFlamethrowerDamage' is declared but its value is never read.

@@ -13,13 +13,13 @@ export interface PhysicsCoordinatorConfig extends CoordinatorConfig {
 }
 
 export class PhysicsCoordinator extends BaseCoordinator {
-    private physics: PhysicsWorld;
-    private character: CharacterController;
+    private _physics: PhysicsWorld;
+    private _character: CharacterController;
 
     constructor(config: PhysicsCoordinatorConfig) {
         super(config);
-        this.physics = config.physics;
-        this.character = config.character;
+        this._physics = config.physics;
+        this._character = config.character;
     }
 
     protected onInitialize(): void {
@@ -69,13 +69,13 @@ export class PhysicsCoordinator extends BaseCoordinator {
      * 获取物理世界
      */
     getPhysics(): PhysicsWorld {
-        return this.physics;
+        return this._physics;
     }
 
     /**
      * 获取角色控制器
      */
     getCharacter(): CharacterController {
-        return this.character;
+        return this._character;
     }
 }

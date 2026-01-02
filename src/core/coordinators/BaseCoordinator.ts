@@ -3,7 +3,6 @@
  * 用于将 Game 类拆分为多个独立的协调器
  */
 
-import * as THREE from 'three';
 import { Game } from '../Game';
 import { EventBus } from '../EventBus';
 

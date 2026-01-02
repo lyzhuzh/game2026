@@ -43,6 +43,12 @@ export class PlayerModel {
     // First-person arms clipping
     private clippingPlane?: THREE.Plane;
 
+    // Animation Debug Mode
+    private debugMode: boolean = false;
+    private debugAnimationIndex: number = 0;
+    private debugAnimationSpeed: number = 1.0;
+    private debugPaused: boolean = false;
+
     constructor(scene: THREE.Scene, config: PlayerModelConfig) {
         this.scene = scene;
         this.config = config;
@@ -249,8 +255,8 @@ export class PlayerModel {
     }
 
     /**
-     * Find hand bones for weapon attachment
-     * Common bone names: mixamorigRightHand, RightHand, hand.R, R_hand
+     * Find hand/arm bones for weapon attachment
+     * Also looks for ForeArm as it's often better for weapon alignment
      */
     private findHandBones(): void {
         if (!this.model) return;
@@ -261,18 +267,31 @@ export class PlayerModel {
             'hand.R',
             'R_hand',
             'right_hand',
-            'HandRight',
-            'mixamorigLeftHand',
-            'LeftHand'
+            'HandRight'
+        ];
+
+        const commonForeArmNames = [
+            'mixamorigRightForeArm',
+            'RightForeArm',
+            'forearm.R',
+            'R_forearm',
+            'right_forearm'
         ];
 
         this.model.traverse((child) => {
             if (child instanceof THREE.Bone) {
+                // Check for Hand
                 for (const name of commonHandNames) {
                     if (child.name.includes(name)) {
-                        const handType = name.toLowerCase().includes('left') ? 'left' : 'right';
-                        this.handBones.set(handType, child);
-                        console.log(`[PlayerModel] Found ${handType} hand bone: ${child.name}`);
+                        this.handBones.set('right_hand', child);
+                        console.log(`[PlayerModel] Found right hand bone: ${child.name}`);
+                    }
+                }
+                // Check for ForeArm
+                for (const name of commonForeArmNames) {
+                    if (child.name.includes(name)) {
+                        this.handBones.set('right_forearm', child);
+                        console.log(`[PlayerModel] Found right forearm bone: ${child.name}`);
                     }
                 }
             }
@@ -283,14 +302,15 @@ export class PlayerModel {
      * Create weapon attachment point
      */
     private createWeaponAttachmentPoint(): void {
-        const rightHand = this.handBones.get('right');
+        // Prioritize ForeArm for better alignment, fallback to Hand
+        const attachmentBone = this.handBones.get('right_forearm') || this.handBones.get('right_hand');
 
-        if (rightHand) {
-            // Use hand bone as attachment point
+        if (attachmentBone) {
+            // Use bone as attachment point
             this.weaponAttachmentPoint = new THREE.Object3D();
             this.weaponAttachmentPoint.name = 'WeaponAttachmentPoint';
-            rightHand.add(this.weaponAttachmentPoint);
-            console.log('[PlayerModel] Weapon attached to right hand bone');
+            attachmentBone.add(this.weaponAttachmentPoint);
+            console.log(`[PlayerModel] Weapon attached to bone: ${attachmentBone.name}`);
         } else if (this.model) {
             // Fallback: create attachment point on model
             this.weaponAttachmentPoint = new THREE.Object3D();
@@ -324,6 +344,16 @@ export class PlayerModel {
         });
     }
 
+    private viewMode: ViewMode = ViewMode.FIRST_PERSON; // Default to FPP
+
+    /**
+     * Set view mode
+     */
+    setViewMode(mode: ViewMode): void {
+        this.viewMode = mode;
+        this.updateAnimation(); // Force update animation on mode change
+    }
+
     /**
      * Get weapon attachment point
      */
@@ -339,8 +369,13 @@ export class PlayerModel {
 
         this.mixer = new THREE.AnimationMixer(this.model);
 
+        console.log('[PlayerModel] Available animations:', animations.map(a => a.name));
+
         for (const clip of animations) {
+            // Store by name
             this.animations.set(clip.name, clip);
+            // Also store lowercased name for case-insensitive lookup
+            this.animations.set(clip.name.toLowerCase(), clip);
         }
 
         // Play idle animation if available
@@ -350,13 +385,19 @@ export class PlayerModel {
     }
 
     /**
-     * Play animation by name with fuzzy matching
-     * Reference: Enemy.playAnimation
+     * Play animation by name
+     * @returns true if animation was found and played
      */
-    playAnimation(name: string, loop: boolean = true): void {
-        if (!this.mixer) return;
+    private playAnimation(name: string, loop: boolean = false): boolean {
+        if (!this.mixer) return false;
 
-        // First, try exact match
+        // Disabled animations - skip these completely
+        const disabledAnimations = ['corin_wickes_Idle_1'];
+        if (disabledAnimations.includes(name)) {
+            return false;
+        }
+
+        // First, try to find animation by exact name
         let clip = this.animations.get(name);
 
         // If not found, try common variations
@@ -372,7 +413,11 @@ export class PlayerModel {
 
         // If still not found, try fuzzy matching (contains the keyword)
         if (!clip) {
+            const disabledAnimations = ['corin_wickes_Idle_1'];
             for (const [animName, animClip] of this.animations) {
+                // Skip disabled animations
+                if (disabledAnimations.includes(animName)) continue;
+
                 const animNameLower = animName.toLowerCase();
                 const nameLower = name.toLowerCase();
 
@@ -389,7 +434,7 @@ export class PlayerModel {
 
         if (!clip) {
             // Don't spam warnings - only log once per animation type
-            return;
+            return false;
         }
 
         // Fade out current animation
@@ -406,6 +451,7 @@ export class PlayerModel {
         action.play();
 
         this.currentAction = action;
+        return true;
     }
 
     /**
@@ -429,6 +475,18 @@ export class PlayerModel {
         variations.push(`${lower}_loop`);
         variations.push(`${lower}_anim`);
 
+        // Attack/Shoot variations
+        if (baseName === 'attack' || baseName === 'shoot') {
+            variations.push('Attack');
+            variations.push('attack');
+            variations.push('Shoot');
+            variations.push('shoot');
+            variations.push('Shooting');
+            variations.push('shooting');
+            variations.push('Fire');
+            variations.push('fire');
+        }
+
         return variations;
     }
 
@@ -446,6 +504,7 @@ export class PlayerModel {
         this.modelGroup.position.copy(position);
 
         // Sync rotation (only Y axis to avoid tilting)
+        // Note: All rotation offsets are calculated in Game.ts based on view mode
         this.modelGroup.rotation.y = rotation.yaw;
 
         // Update movement state and switch animation if changed
@@ -457,7 +516,7 @@ export class PlayerModel {
 
         // Debug: log model position and scale every few seconds
         if (Math.random() < 0.005) {
-            console.log(`[PlayerModel] Position: ${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}, State: ${moveState}`);
+            // console.log(`[PlayerModel] Position: ${ position.x.toFixed(1) }, ${ position.y.toFixed(1) }, ${ position.z.toFixed(1) }, State: ${ moveState } `);
         }
 
         // Update animation mixer
@@ -472,6 +531,20 @@ export class PlayerModel {
      */
     private updateAnimation(): void {
         if (!this.mixer || this.animations.size === 0) return;
+
+        // Skip automatic update if in debug mode
+        if (this.debugMode) return;
+
+        // Special case: Third Person Idle -> Use specific combat pose animation
+        if (this.currentMoveState === 'idle' && this.viewMode === ViewMode.THIRD_PERSON) {
+            // Use corin_wickes_Shoot_3 for combat ready stance
+            if (this.playAnimation('corin_wickes_Shoot_3', true)) return;
+            // Fallback to other combat animations
+            if (this.playAnimation('shoot', true)) return;
+            if (this.playAnimation('attack', true)) return;
+            if (this.playAnimation('fire', true)) return;
+            // If no combat animation found, fall back to normal idle
+        }
 
         switch (this.currentMoveState) {
             case 'idle':
@@ -553,6 +626,182 @@ export class PlayerModel {
         this.model.add(this.weaponAttachmentPoint);
 
         console.log('[PlayerModel] Created placeholder model');
+    }
+
+    // ========== Animation Debug Controls ==========
+
+    /**
+     * Enable/disable animation debug mode
+     * In debug mode, animation state is manually controlled
+     */
+    setDebugMode(enabled: boolean): void {
+        this.debugMode = enabled;
+        if (enabled) {
+            console.log('[PlayerModel Debug] Debug mode ENABLED');
+            console.log('[PlayerModel Debug] Controls:');
+            console.log('  1-9: Play animation by index');
+            console.log('  0: List all animations');
+            console.log('  +/-: Adjust animation speed');
+            console.log('  P: Pause/Resume animation');
+            console.log('  [/]: Previous/Next animation');
+            this.listAnimations();
+        } else {
+            console.log('[PlayerModel Debug] Debug mode DISABLED');
+            this.debugAnimationSpeed = 1.0;
+            this.debugPaused = false;
+        }
+    }
+
+    /**
+     * Check if debug mode is enabled
+     */
+    isDebugModeEnabled(): boolean {
+        return this.debugMode;
+    }
+
+    /**
+     * List all available animations
+     */
+    listAnimations(): string[] {
+        const names: string[] = [];
+        const seen = new Set<string>();
+        for (const [name] of this.animations) {
+            const lowerName = name.toLowerCase();
+            if (!seen.has(lowerName)) {
+                seen.add(lowerName);
+                names.push(name);
+            }
+        }
+        console.log('[PlayerModel Debug] Available animations:');
+        names.forEach((name, index) => {
+            console.log(`  ${index}: ${name}`);
+        });
+        return names;
+    }
+
+    /**
+     * Play animation by index (for debug)
+     */
+    playAnimationByIndex(index: number): boolean {
+        const names = this.listAnimations();
+        if (index >= 0 && index < names.length) {
+            const name = names[index];
+            this.debugAnimationIndex = index;
+            console.log(`[PlayerModel Debug] Playing animation ${index}: ${name}`);
+            return this.playAnimation(name, true);
+        }
+        console.warn(`[PlayerModel Debug] Invalid animation index: ${index}`);
+        return false;
+    }
+
+    /**
+     * Play next animation (for debug)
+     */
+    playNextAnimation(): void {
+        const names = this.listAnimations();
+        this.debugAnimationIndex = (this.debugAnimationIndex + 1) % names.length;
+        this.playAnimationByIndex(this.debugAnimationIndex);
+    }
+
+    /**
+     * Play previous animation (for debug)
+     */
+    playPreviousAnimation(): void {
+        const names = this.listAnimations();
+        this.debugAnimationIndex = (this.debugAnimationIndex - 1 + names.length) % names.length;
+        this.playAnimationByIndex(this.debugAnimationIndex);
+    }
+
+    /**
+     * Force play animation by name (public, for debug)
+     */
+    forcePlayAnimation(name: string, loop: boolean = true): boolean {
+        return this.playAnimation(name, loop);
+    }
+
+    /**
+     * Set animation playback speed (for debug)
+     */
+    setAnimationSpeed(speed: number): void {
+        this.debugAnimationSpeed = Math.max(0.1, Math.min(3.0, speed));
+        if (this.currentAction) {
+            this.currentAction.timeScale = this.debugAnimationSpeed;
+        }
+        console.log(`[PlayerModel Debug] Animation speed: ${this.debugAnimationSpeed.toFixed(1)}x`);
+    }
+
+    /**
+     * Adjust animation speed (for debug)
+     */
+    adjustAnimationSpeed(delta: number): void {
+        this.setAnimationSpeed(this.debugAnimationSpeed + delta);
+    }
+
+    /**
+     * Toggle pause/resume animation (for debug)
+     */
+    togglePause(): void {
+        this.debugPaused = !this.debugPaused;
+        if (this.currentAction) {
+            this.currentAction.paused = this.debugPaused;
+        }
+        console.log(`[PlayerModel Debug] Animation ${this.debugPaused ? 'PAUSED' : 'RESUMED'}`);
+    }
+
+    /**
+     * Get current animation info (for debug UI)
+     */
+    getDebugInfo(): { animationName: string; speed: number; paused: boolean; time: number } {
+        const names = this.listAnimations();
+        return {
+            animationName: names[this.debugAnimationIndex] || 'N/A',
+            speed: this.debugAnimationSpeed,
+            paused: this.debugPaused,
+            time: this.currentAction ? this.currentAction.time : 0
+        };
+    }
+
+    /**
+     * Handle debug keyboard input
+     * Call this from Game.ts when debug mode is enabled
+     */
+    handleDebugInput(key: string): void {
+        if (!this.debugMode) return;
+
+        switch (key) {
+            case '0':
+                this.listAnimations();
+                break;
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                this.playAnimationByIndex(parseInt(key) - 1);
+                break;
+            case '=':
+            case '+':
+                this.adjustAnimationSpeed(0.1);
+                break;
+            case '-':
+            case '_':
+                this.adjustAnimationSpeed(-0.1);
+                break;
+            case 'p':
+            case 'P':
+                this.togglePause();
+                break;
+            case '[':
+                this.playPreviousAnimation();
+                break;
+            case ']':
+                this.playNextAnimation();
+                break;
+        }
     }
 
     /**

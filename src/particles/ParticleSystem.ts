@@ -11,7 +11,7 @@ import { createConfigFromPreset } from './presets/ParticlePresets';
 export class ParticleSystem {
     private pool: ParticlePool;
     private scene: THREE.Scene;
-    private camera?: THREE.Camera;
+    private _camera?: THREE.Camera;
     private decalMeshes: THREE.Mesh[] = [];
 
     constructor(scene: THREE.Scene) {
@@ -23,7 +23,7 @@ export class ParticleSystem {
      * Set camera for billboarding
      */
     setCamera(camera: THREE.Camera): void {
-        this.camera = camera;
+        this._camera = camera;
         this.pool.setCamera(camera);
     }
 

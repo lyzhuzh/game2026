@@ -17,8 +17,6 @@
  * ```
  */
 
-import { GAME_CONFIG } from '../config/GameConfig';
-
 export interface PoolObject {
     active?: boolean;
 }
@@ -229,14 +227,14 @@ export class ObjectPool<T extends PoolObject> {
     /**
      * 子类实现：重置对象状态
      */
-    protected reset(obj: T): void {
+    protected reset(_obj: T): void {
         // 默认不重置，子类可覆盖
     }
 
     /**
      * 子类实现：销毁对象
      */
-    protected destroy(obj: T): void {
+    protected destroy(_obj: T): void {
         // 默认不销毁，子类可覆盖
     }
 
