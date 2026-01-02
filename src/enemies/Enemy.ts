@@ -219,6 +219,9 @@ export class Enemy {
         this.physicsBody.body.allowSleep = false;
         this.physicsBody.body.sleepSpeedLimit = -1;
 
+        // Debug: verify spawn position
+        console.log(`[Enemy] ${this.type} spawned at mesh.position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)}), physics: (${this.physicsBody.body.position.x.toFixed(2)}, ${this.physicsBody.body.position.y.toFixed(2)}, ${this.physicsBody.body.position.z.toFixed(2)})`);
+
         // Debug: verify physics body was added to world
         console.log(`[Enemy] Created enemy at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
         console.log(`[Enemy] Physics body position: (${this.physicsBody.body.position.x.toFixed(1)}, ${this.physicsBody.body.position.y.toFixed(1)}, ${this.physicsBody.body.position.z.toFixed(1)})`);
@@ -455,10 +458,14 @@ export class Enemy {
 
         // Position model so its bottom is at y=0 (on the ground)
         // For SkinnedMesh, the bounding box may not reflect actual feet position
-        // Use small offset to account for skeleton bind pose vs actual pose
-        const groundOffset = 0.3; // Small offset to push feet to ground level
+        // Add significant offset to push model down to ground
+        const groundOffset = 1.0; // Extra offset to push model down to ground
         model.position.set(0, -minY - groundOffset, 0);
         model.rotation.set(0, 0, 0);
+
+        // Debug: log model positioning for problematic enemies
+        const modelHeight = _maxY - minY;
+        console.log(`[Enemy] Model positioning - minY: ${minY.toFixed(3)}, modelHeight: ${modelHeight.toFixed(3)}, groundOffset: ${groundOffset}, finalY: ${(-minY - groundOffset).toFixed(3)}`);
 
         // Keep original materials, just ensure visibility and shadows
         model.traverse((child) => {
@@ -993,6 +1000,10 @@ export class Enemy {
         // Physics engine gravity (-9.82) will pull enemy down, so we need to keep Y position stable
         const targetY = 1; // Ground level + half height
         if (Math.abs(this.physicsBody.body.position.y - targetY) > 0.1) {
+            // Debug: log Y position correction
+            if (Math.abs(this.physicsBody.body.position.y - targetY) > 0.5) {
+                console.warn(`[Enemy] ${this.type} Y position abnormal: ${this.physicsBody.body.position.y.toFixed(2)}, correcting to ${targetY}`);
+            }
             this.physicsBody.body.position.y = targetY;
             this.physicsBody.body.velocity.y = 0;
         }
