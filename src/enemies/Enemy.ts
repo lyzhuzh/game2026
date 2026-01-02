@@ -158,7 +158,6 @@ export class Enemy {
 
     // AI behavior
     private evadeTimer: number = 0;
-    private evadeDirection: THREE.Vector3 = new THREE.Vector3();
     private alertedByAlly: boolean = false;
     private lastAlertTime: number = 0;
 
@@ -954,20 +953,15 @@ export class Enemy {
      * Evade state - move away from danger while trying to shoot
      */
     private updateEvade(deltaTime: number, playerPosition: THREE.Vector3): void {
-        // Calculate evade direction (perpendicular to player direction)
+        // CRITICAL FIX: Use BACKWARD movement instead of sidestep
+        // Sideways movement (perpendicular to player) causes animation freezing
+        // because the character faces forward but moves sideways, which the animation
+        // system can't handle properly. Backward movement keeps facing and movement aligned.
         const toPlayer = new THREE.Vector3().subVectors(playerPosition, this.mesh.position).normalize();
-        const evadeDir = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x).normalize();
+        const evadeDir = toPlayer.clone().negate(); // Move AWAY from player (backward)
 
-        // If this is the first frame of evade, pick a random perpendicular direction
-        if (this.evadeDirection.length() === 0) {
-            if (Math.random() > 0.5) {
-                evadeDir.negate();
-            }
-            this.evadeDirection.copy(evadeDir);
-        }
-
-        // Move in evade direction
-        this.move(this.evadeDirection, this.stats.evadeSpeed);
+        // Move in evade direction (backward, away from player)
+        this.move(evadeDir, this.stats.evadeSpeed);
 
         // Face player while evading (to shoot)
         this.faceTarget(playerPosition);
@@ -1019,22 +1013,29 @@ export class Enemy {
         // Wake up the physics body so it responds to velocity changes
         this.physicsBody.body.wakeUp();
 
-        // Smooth movement direction to prevent sudden "ghosting" when changing states
-        // When switching from chase to evade, direction changes 90 degrees instantly,
-        // which causes visual artifacts. Smooth the transition.
-        const smoothingFactor = 0.2; // Lower = more smooth but slower response
-        this.targetMoveDirection.copy(direction);
+        // CRITICAL: In evade state, DON'T smooth movement direction
+        // Evade requires precise perpendicular movement (side-step while facing player).
+        // Smoothing causes direction mismatch between movement and facing,
+        // resulting in animation freezing/ghosting.
+        const shouldSmoothMovement = this.state !== 'evade';
 
-        // CRITICAL FIX: If currentMoveDirection is zero (first frame or reset),
-        // directly set it to target direction instead of lerping from zero.
-        if (this.currentMoveDirection.lengthSq() < 0.001) {
-            this.currentMoveDirection.copy(direction);
+        if (shouldSmoothMovement) {
+            // Smooth movement direction for normal state transitions
+            const smoothingFactor = 0.2;
+            this.targetMoveDirection.copy(direction);
+
+            if (this.currentMoveDirection.lengthSq() < 0.001) {
+                this.currentMoveDirection.copy(direction);
+            } else {
+                this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
+                this.currentMoveDirection.normalize();
+            }
         } else {
-            this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
-            this.currentMoveDirection.normalize();
+            // In evade: use exact direction, no smoothing
+            this.currentMoveDirection.copy(direction);
         }
 
-        // Use smoothed direction for movement
+        // Use direction for movement
         const vx = this.currentMoveDirection.x * speed;
         const vz = this.currentMoveDirection.z * speed;
         this.physicsBody.body.velocity.set(vx, 0, vz);
@@ -1073,25 +1074,10 @@ export class Enemy {
         if (direction.length() > 0.01 && this.modelRoot) {
             const targetAngle = Math.atan2(direction.x, direction.z);
 
-            // Smooth rotation to prevent sudden "ghosting" visual artifacts
-            // When switching states (especially to evade), sudden rotation changes
-            // can cause visual glitches. Smooth the transition over a few frames.
-            const rotationSpeed = 10; // radians per second
-            const currentAngle = this.modelRoot.rotation.y;
-            const deltaTime = Math.min(Time.deltaTime, 0.05);
-
-            // Find shortest rotation direction
-            let angleDiff = targetAngle - currentAngle;
-            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-
-            // Limit rotation speed
-            const maxRotation = rotationSpeed * deltaTime;
-            if (Math.abs(angleDiff) > maxRotation) {
-                angleDiff = Math.sign(angleDiff) * maxRotation;
-            }
-
-            this.modelRoot.rotation.y = currentAngle + angleDiff;
+            // CRITICAL: Direct rotation, no smoothing
+            // Smoothing rotation causes animation/movement mismatch
+            // when enemy needs to quickly face player (especially after state transitions).
+            this.modelRoot.rotation.y = targetAngle;
         }
     }
 
