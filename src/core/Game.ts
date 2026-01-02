@@ -800,6 +800,9 @@ export class Game {
         if (!weaponState) {
             this.playerCamera.resetZoom();
             this.ui.hideSniperScope();
+            // Reset near plane when not using sniper
+            this.camera.near = GAME_CONFIG.CAMERA.NEAR_PLANE;
+            this.camera.updateProjectionMatrix();
             return;
         }
 
@@ -809,10 +812,19 @@ export class Game {
                 this.playerCamera.setZoom(6);
                 this.ui.showSniperScope();
                 this.weaponRenderer.setWeaponVisible(false);
+
+                // Increase near plane when zoomed to improve depth precision
+                // This fixes "ghosting" artifacts on enemies
+                this.camera.near = 0.5; // Increase from 0.1 to 0.5 when zoomed
+                this.camera.updateProjectionMatrix();
             } else {
                 this.playerCamera.resetZoom();
                 this.ui.hideSniperScope();
                 this.weaponRenderer.setWeaponVisible(true);
+
+                // Reset near plane when not zoomed
+                this.camera.near = GAME_CONFIG.CAMERA.NEAR_PLANE;
+                this.camera.updateProjectionMatrix();
             }
         }
         // Rifle: 2x zoom (no scope overlay, weapon still visible)
