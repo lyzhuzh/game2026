@@ -680,7 +680,7 @@ export class Enemy {
         }
 
         // Update state based on player proximity
-        this.updateState(playerPosition);
+        this.updateState(deltaTime, playerPosition);
 
         // Execute state behavior
         switch (this.state) {
@@ -708,7 +708,7 @@ export class Enemy {
     /**
      * Update AI state based on player position
      */
-    private updateState(playerPosition: THREE.Vector3): void {
+    private updateState(deltaTime: number, playerPosition: THREE.Vector3): void {
         const distance = this.mesh.position.distanceTo(playerPosition);
         const time = performance.now() / 1000;
 
