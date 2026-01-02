@@ -736,6 +736,9 @@ export class Enemy {
         const distance = this.mesh.position.distanceTo(playerPosition);
         const time = performance.now() / 1000;
 
+        // Track state changes to reset smooth movement
+        const previousState = this.state;
+
         switch (this.state) {
             case 'idle':
             case 'patrol':
@@ -784,6 +787,14 @@ export class Enemy {
                     this.shootAtPlayer(playerPosition);
                 }
                 break;
+        }
+
+        // CRITICAL: Reset smooth movement direction when state changes
+        // This prevents the "ghosting" bug where currentMoveDirection is zero
+        // causing animation to freeze while body still moves.
+        if (previousState !== this.state) {
+            this.currentMoveDirection.set(0, 0, 0);
+            this.targetMoveDirection.set(0, 0, 0);
         }
 
         // Clear alerted status after a while
@@ -1013,8 +1024,15 @@ export class Enemy {
         // which causes visual artifacts. Smooth the transition.
         const smoothingFactor = 0.2; // Lower = more smooth but slower response
         this.targetMoveDirection.copy(direction);
-        this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
-        this.currentMoveDirection.normalize();
+
+        // CRITICAL FIX: If currentMoveDirection is zero (first frame or reset),
+        // directly set it to target direction instead of lerping from zero.
+        if (this.currentMoveDirection.lengthSq() < 0.001) {
+            this.currentMoveDirection.copy(direction);
+        } else {
+            this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
+            this.currentMoveDirection.normalize();
+        }
 
         // Use smoothed direction for movement
         const vx = this.currentMoveDirection.x * speed;
