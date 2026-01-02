@@ -101,22 +101,6 @@ export class EnemyManager {
     }
 
     /**
-     * Set level boundaries for enemy spawning
-     * Call this if level size changes
-     */
-    setLevelBounds(xMin: number, xMax: number, zMin: number, zMax: number): void {
-        this.levelBounds = { xMin, xMax, zMin, zMax };
-        console.log(`[EnemyManager] Level bounds updated: x[${xMin}, ${xMax}], z[${zMin}, ${zMax}]`);
-    }
-
-    /**
-     * Get current level bounds
-     */
-    getLevelBounds(): typeof this.levelBounds {
-        return { ...this.levelBounds };
-    }
-
-    /**
      * Spawn an enemy
      */
     spawnEnemy(config: EnemySpawnConfig): Enemy | null {
@@ -180,22 +164,19 @@ export class EnemyManager {
     }
 
     /**
-     * Handle enemy shooting - create projectile
+     * Handle enemy shooting - damage player if hit
      */
     private handleEnemyShoot(origin: THREE.Vector3, direction: THREE.Vector3, damage: number): void {
-        // Create a simple hitscan for enemy shooting
-        // For now, we'll directly damage the player if the raycast hits
-        const raycaster = new THREE.Raycaster(origin, direction, 0, 100); // 100 unit range
         const playerPos = this.playerPosition;
 
-        // Simple distance check to see if player is in shooting direction
+        // Check if player is in shooting direction
         const toPlayer = new THREE.Vector3().subVectors(playerPos, origin).normalize();
         const dotProduct = direction.dot(toPlayer);
 
         // If player is in the direction of the shot (within 30 degrees)
         if (dotProduct > 0.87) {
             const distance = origin.distanceTo(playerPos);
-            if (distance <= 50) { // Max shooting range
+            if (distance <= 50) {
                 // Apply damage with distance falloff
                 const falloff = Math.max(0.5, 1 - distance / 100);
                 const finalDamage = damage * falloff;

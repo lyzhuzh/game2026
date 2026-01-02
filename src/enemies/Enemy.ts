@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -31,15 +32,8 @@ export interface EnemyStats {
     detectionRange: number;
     loseSightRange: number;
 
-    // Ranged combat
-    hasRanged: boolean;        // 是否有远程攻击能力
+    // Ranged Combat
     shootRange: number;         // 射击范围
-    shootAccuracy: number;      // 射击精度 (0-1)
-    shootCooldown: number;      // 射击冷却时间
-
-    // AI behavior
-    evadeSpeed: number;         // 躲避移动速度
-    allyAlertRange: number;     // 队友死亡感知范围
 
     // Points
     scoreValue: number;
@@ -49,88 +43,64 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     grunt: {
         maxHealth: 50,
         health: 50,
-        moveSpeed: 10,
-        chaseSpeed: 15,
+        moveSpeed: 10,  // 2 -> 10 (faster movement)
+        chaseSpeed: 15,  // 4 -> 15
         rotationSpeed: 2,
         damage: 10,
         attackRange: 3,
         attackCooldown: 2.0,
         detectionRange: 15,
         loseSightRange: 25,
-        // Ranged combat - 基础敌人有简单射击能力
-        hasRanged: true,
-        shootRange: 15,
-        shootAccuracy: 0.4,
-        shootCooldown: 3.0,
-        // AI behavior
-        evadeSpeed: 8,
-        allyAlertRange: 20,
+        // Ranged combat - 基础敌人射程较短
+        shootRange: 25,  // detectionRange + 10
         scoreValue: 100
     },
 
     soldier: {
         maxHealth: 80,
         health: 80,
-        moveSpeed: 12,
-        chaseSpeed: 18,
+        moveSpeed: 12,  // 2.5 -> 12
+        chaseSpeed: 18,  // 5 -> 18
         rotationSpeed: 2.5,
         damage: 15,
         attackRange: 5,
         attackCooldown: 1.5,
         detectionRange: 20,
         loseSightRange: 30,
-        // Ranged combat - 士兵有较好的射击能力
-        hasRanged: true,
-        shootRange: 25,
-        shootAccuracy: 0.6,
-        shootCooldown: 2.0,
-        // AI behavior
-        evadeSpeed: 12,
-        allyAlertRange: 30,
+        // Ranged combat - 士兵射程中等
+        shootRange: 30,  // detectionRange + 10
         scoreValue: 200
     },
 
     heavy: {
         maxHealth: 200,
         health: 200,
-        moveSpeed: 8,
-        chaseSpeed: 12,
+        moveSpeed: 8,  // 1.5 -> 8
+        chaseSpeed: 12,  // 3 -> 12
         rotationSpeed: 1,
         damage: 25,
         attackRange: 4,
         attackCooldown: 2.5,
         detectionRange: 12,
         loseSightRange: 20,
-        // Ranged combat - 重装兵射击慢但伤害高
-        hasRanged: true,
-        shootRange: 20,
-        shootAccuracy: 0.5,
-        shootCooldown: 4.0,
-        // AI behavior - 移动慢
-        evadeSpeed: 6,
-        allyAlertRange: 25,
+        // Ranged combat - 重装敌人射程中等
+        shootRange: 22,  // detectionRange + 10
         scoreValue: 500
     },
 
     sniper: {
         maxHealth: 40,
         health: 40,
-        moveSpeed: 10,
-        chaseSpeed: 12,
+        moveSpeed: 10,  // 2 -> 10
+        chaseSpeed: 12,  // 3 -> 12
         rotationSpeed: 2,
         damage: 35,
         attackRange: 30,
         attackCooldown: 3.0,
         detectionRange: 25,
         loseSightRange: 35,
-        // Ranged combat - 狙击手精准但装填慢
-        hasRanged: true,
-        shootRange: 50,
-        shootAccuracy: 0.8,
-        shootCooldown: 5.0,
-        // AI behavior - 优先躲避
-        evadeSpeed: 15,
-        allyAlertRange: 40,
+        // Ranged combat - 狙击手射程最远
+        shootRange: 50,  // detectionRange + 10 (狙击手特殊配置，更远的射程)
         scoreValue: 300
     }
 };
@@ -149,21 +119,21 @@ export class Enemy {
     private onDeathCallback?: (enemy: Enemy) => void;
     private onAttackCallback?: (damage: number) => void;
     private onHurtCallback?: () => void;
-    private onShootCallback?: (origin: THREE.Vector3, direction: THREE.Vector3, damage: number) => void;
-    private onAllyDeathCallback?: (allyPosition: THREE.Vector3) => void;
 
     // Combat
     private lastAttackTime: number = 0;
-    private lastShootTime: number = 0;
 
-    // AI behavior
-    private evadeTimer: number = 0;
+    // Team Awareness
     private alertedByAlly: boolean = false;
     private lastAlertTime: number = 0;
 
-    // Smooth movement to prevent sudden direction changes
-    private currentMoveDirection: THREE.Vector3 = new THREE.Vector3();
-    private targetMoveDirection: THREE.Vector3 = new THREE.Vector3();
+    // Evade behavior
+    private evadeTimer: number = 0;
+    private evadeDirection: THREE.Vector3 = new THREE.Vector3();
+
+    // Ranged Combat
+    private lastShootTime: number = 0;
+    private onShootCallback?: (origin: THREE.Vector3, direction: THREE.Vector3, damage: number) => void;
 
     // Patrol
     private patrolPoints: THREE.Vector3[] = [];
@@ -222,9 +192,6 @@ export class Enemy {
         this.physicsBody.body.allowSleep = false;
         this.physicsBody.body.sleepSpeedLimit = -1;
 
-        // Debug: verify spawn position
-        console.log(`[Enemy] ${this.type} spawned at mesh.position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)}), physics: (${this.physicsBody.body.position.x.toFixed(2)}, ${this.physicsBody.body.position.y.toFixed(2)}, ${this.physicsBody.body.position.z.toFixed(2)})`);
-
         // Debug: verify physics body was added to world
         console.log(`[Enemy] Created enemy at (${this.mesh.position.x.toFixed(1)}, ${this.mesh.position.y.toFixed(1)}, ${this.mesh.position.z.toFixed(1)})`);
         console.log(`[Enemy] Physics body position: (${this.physicsBody.body.position.x.toFixed(1)}, ${this.physicsBody.body.position.y.toFixed(1)}, ${this.physicsBody.body.position.z.toFixed(1)})`);
@@ -254,88 +221,21 @@ export class Enemy {
                 // Deep clone the scene manually
                 const clonedScene = this.deepCloneGltf(gltf.scene);
 
-                // Use attachModel to setup mesh, animations, and scaling
+                // Extract animations if available
                 const animations = gltf.animations || [];
                 this.attachModel(clonedScene, animations);
-
-                // Rotate model 180 degrees to face forward (common GLTF issue)
-                if (this.modelRoot) {
-                    this.modelRoot.rotation.y = Math.PI;
-                }
-
-                // Load weapon
-                await this.loadWeapon();
             } else {
-                console.warn(`[Enemy] Failed to load GLTF scene for ${this.type}`);
                 this.createPlaceholder();
             }
         } catch (error) {
-            console.error(`[Enemy] Error loading model for ${this.type}:`, error);
+            console.warn(`[Enemy] Failed to load model for ${this.type}:`, error);
             this.createPlaceholder();
         }
     }
 
     /**
-     * Load and attach weapon (Rifle)
+     * Deep clone GLTF scene with materials and skeleton support
      */
-    private async loadWeapon(): Promise<void> {
-        if (!this.modelRoot) return;
-
-        // Find RightForeArm bone
-        let attachmentBone: THREE.Bone | null = null;
-        this.modelRoot.traverse((child) => {
-            if (child instanceof THREE.Bone) {
-                if (child.name.includes('RightForeArm') || child.name.includes('forearm.R')) {
-                    attachmentBone = child;
-                }
-            }
-        });
-
-        if (!attachmentBone) {
-            console.warn('[Enemy] RightForeArm bone not found for weapon attachment');
-            return;
-        }
-
-        // Load rifle asset
-        const weaponConfig = GAME_ASSETS.find(a => a.id === 'weapon_smg'); // Same asset as player's rifle
-        if (!weaponConfig) return;
-
-        try {
-            const gltf = await this.assetManager.loadAsset(weaponConfig);
-            if (gltf && gltf.scene) {
-                const weaponModel = gltf.scene.clone();
-
-                // Apply calibration data (Rifle - Forearm)
-                // Offset: (-0.02, 0.05, 0.00)
-                // Rot: (1.60, 0.60, -2.45)
-                // Scale: 0.042
-                weaponModel.position.set(-0.02, 0.05, 0.00);
-                weaponModel.rotation.set(1.60, 0.60, -2.45);
-                weaponModel.scale.setScalar(0.042);
-
-                // Attach to bone
-                attachmentBone.add(weaponModel);
-
-                // Enable shadows and clone materials for weapon
-                weaponModel.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        // Clone materials to avoid sharing
-                        if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(mat => mat.clone());
-                            } else {
-                                child.material = child.material.clone();
-                            }
-                        }
-                    }
-                });
-            }
-        } catch (error) {
-            console.warn('[Enemy] Failed to load weapon:', error);
-        }
-    }
     private deepCloneGltf(source: THREE.Object3D): THREE.Object3D {
         // First, collect all bones from original source by name
         const originalBonesByName = new Map<string, THREE.Bone>();
@@ -358,7 +258,7 @@ export class Enemy {
 
         // Handle SkinnedMesh - update skeleton to use cloned bones
         clone.traverse((child) => {
-            if (child instanceof THREE.SkinnedMesh) {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 const originalSkeleton = skinnedMesh.skeleton;
 
@@ -395,15 +295,12 @@ export class Enemy {
     /**
      * Attach loaded model to mesh
      */
-    private attachModel(model: THREE.Group | THREE.Object3D, animations: THREE.AnimationClip[] = []): void {
+    private attachModel(model: THREE.Group, animations: THREE.AnimationClip[] = []): void {
         // Clear existing children
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];
             this.mesh.remove(child);
         }
-
-        // Add model to scene (ONCE - remove duplicate add below)
-        this.mesh.add(model);
 
         // Setup animation mixer and clips
         if (animations.length > 0) {
@@ -414,20 +311,17 @@ export class Enemy {
                 this.animations.set(clip.name, clip);
             }
 
-            // IMPORTANT: Do NOT play animation yet!
-            // We need to calculate bounding box from bind pose (T-pose) first
-            // Animation will be played after model is positioned
+            // Play idle animation by default if available
+            this.playAnimation('idle', true);
         }
 
-        // Update skeleton matrices to bind pose before calculating bounding box
+        // Update skeleton matrices before calculating bounding box
         model.updateMatrixWorld(true);
 
-        // Force reset all SkinnedMesh to bind pose for accurate bounding box
+        // Force update all SkinnedMesh bones
         model.traverse((child) => {
-            if (child instanceof THREE.SkinnedMesh) {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
-                // Reset to bind pose (T-pose) for consistent bounding box
-                skinnedMesh.pose();
                 skinnedMesh.updateMatrixWorld(true);
             }
         });
@@ -450,7 +344,7 @@ export class Enemy {
 
         // Force update all SkinnedMesh bones and matrices
         model.traverse((child) => {
-            if (child instanceof THREE.SkinnedMesh) {
+            if ((child as THREE.Mesh).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 skinnedMesh.updateMatrixWorld(true);
             }
@@ -459,18 +353,14 @@ export class Enemy {
         // Recalculate bounding box after scaling to position model on ground
         const scaledBox = new THREE.Box3().setFromObject(model);
         const minY = scaledBox.min.y;
-        const _maxY = scaledBox.max.y;
+        const maxY = scaledBox.max.y;
 
         // Position model so its bottom is at y=0 (on the ground)
         // For SkinnedMesh, the bounding box may not reflect actual feet position
         // Add significant offset to push model down to ground
-        const groundOffset = 1.0; // Extra offset to push model down to ground
+        const groundOffset = 1.0; // Extra offset to push model down
         model.position.set(0, -minY - groundOffset, 0);
         model.rotation.set(0, 0, 0);
-
-        // Debug: log model positioning for problematic enemies
-        const finalModelHeight = _maxY - minY;
-        console.log(`[Enemy] Model positioning - minY: ${minY.toFixed(3)}, modelHeight: ${finalModelHeight.toFixed(3)}, groundOffset: ${groundOffset}, finalY: ${(-minY - groundOffset).toFixed(3)}`);
 
         // Keep original materials, just ensure visibility and shadows
         model.traverse((child) => {
@@ -481,21 +371,16 @@ export class Enemy {
             }
         });
 
-        // REMOVED: duplicate this.mesh.add(model) and this.modelRoot = model
+        this.mesh.add(model);
 
         // Save model root reference for procedural animation
-        this.modelRoot = model as THREE.Group;
-
-        // NOW play idle animation after model is properly positioned
-        if (animations.length > 0) {
-            this.playAnimation('idle', true);
-        }
+        this.modelRoot = model;
     }
 
     /**
      * Get model bounding box for debugging
      */
-    private _getBoundingBox(model: THREE.Object3D): { size: THREE.Vector3, center: THREE.Vector3 } {
+    private getBoundingBox(model: THREE.Object3D): { size: THREE.Vector3, center: THREE.Vector3 } {
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         const center = new THREE.Vector3();
@@ -642,7 +527,7 @@ export class Enemy {
     /**
      * Update procedural animation (simple bob/bounce when moving)
      */
-    private _updateProceduralAnimation(): void {
+    private updateProceduralAnimation(): void {
         if (!this.modelRoot || this.isDead) return;
 
         const isMoving = this.state === 'chase' || this.state === 'patrol';
@@ -690,15 +575,9 @@ export class Enemy {
     update(deltaTime: number, playerPosition: THREE.Vector3): void {
         if (this.isDead) return;
 
-        // CRITICAL: Use fixed time step for animation to match physics
-        // Physics uses fixed timestep, so animation should too for smooth visual sync.
-        // Using variable deltaTime causes animation to speed up/slow down with framerate,
-        // creating "ghosting" effect where body moves but animation stutters.
-        const fixedTimeStep = 1 / 60; // 60 FPS fixed timestep
-
-        // Update animation mixer with fixed time step
+        // Update animation mixer
         if (this.mixer) {
-            this.mixer.update(fixedTimeStep);
+            this.mixer.update(deltaTime);
             this.updateAnimation();
         }
 
@@ -735,38 +614,35 @@ export class Enemy {
         const distance = this.mesh.position.distanceTo(playerPosition);
         const time = performance.now() / 1000;
 
-        // Track state changes to reset smooth movement
-        const previousState = this.state;
-
         switch (this.state) {
             case 'idle':
             case 'patrol':
-                // Detect player
+                // Detect player or alerted by ally
                 if (distance < this.stats.detectionRange || this.alertedByAlly) {
-                    this.state = 'chase';
-                    // console.log(`[Enemy] ${this.type} detected player at distance ${distance.toFixed(1)}`);
+                    // If alerted by ally (not by direct detection), evade first
+                    if (this.alertedByAlly && distance >= this.stats.detectionRange) {
+                        this.state = 'evade';
+                        this.evadeTimer = 2 + Math.random() * 2; // Evade for 2-4 seconds
+                        // Pick random evade direction (perpendicular to player)
+                        const toPlayer = new THREE.Vector3().subVectors(playerPosition, this.mesh.position).normalize();
+                        const perpendicular = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+                        if (Math.random() > 0.5) perpendicular.negate();
+                        this.evadeDirection.copy(perpendicular.normalize());
+                    } else {
+                        this.state = 'chase';
+                    }
                 }
                 break;
 
             case 'chase':
-                // Check if can shoot (ranged attack)
-                if (this.stats.hasRanged && distance <= this.stats.shootRange && this.canShoot()) {
-                    this.shootAtPlayer(playerPosition);
-                }
-                // Check if in melee attack range
+                // Check if in attack range
                 if (distance < this.stats.attackRange) {
                     this.state = 'attack';
                 }
-                // Lose sight of player
+                // Lose sight of player - clear alerted status when returning to patrol
                 else if (distance > this.stats.loseSightRange) {
                     this.state = 'patrol';
-                }
-                break;
-
-            case 'attack':
-                // Player out of range
-                if (distance > this.stats.attackRange * 1.5) {
-                    this.state = 'chase';
+                    this.alertedByAlly = false; // Clear alert to prevent state flipping
                 }
                 break;
 
@@ -781,22 +657,17 @@ export class Enemy {
                         this.state = 'chase';
                     }
                 }
-                // Still try to shoot while evading if possible
-                if (this.stats.hasRanged && distance <= this.stats.shootRange && this.canShoot()) {
-                    this.shootAtPlayer(playerPosition);
+                break;
+
+            case 'attack':
+                // Player out of range
+                if (distance > this.stats.attackRange * 1.5) {
+                    this.state = 'chase';
                 }
                 break;
         }
 
-        // CRITICAL: Reset smooth movement direction when state changes
-        // This prevents the "ghosting" bug where currentMoveDirection is zero
-        // causing animation to freeze while body still moves.
-        if (previousState !== this.state) {
-            this.currentMoveDirection.set(0, 0, 0);
-            this.targetMoveDirection.set(0, 0, 0);
-        }
-
-        // Clear alerted status after a while
+        // Clear alerted status after 10 seconds
         if (this.alertedByAlly && time - this.lastAlertTime > 10) {
             this.alertedByAlly = false;
         }
@@ -805,7 +676,7 @@ export class Enemy {
     /**
      * Idle state
      */
-    private updateIdle(_deltaTime: number): void {
+    private updateIdle(deltaTime: number): void {
         // Do nothing, wait for player detection
     }
 
@@ -899,7 +770,7 @@ export class Enemy {
     /**
      * Chase state
      */
-    private updateChase(_deltaTime: number, playerPosition: THREE.Vector3): void {
+    private updateChase(deltaTime: number, playerPosition: THREE.Vector3): void {
         const currentPos = new THREE.Vector3(
             this.physicsBody.body.position.x,
             this.physicsBody.body.position.y,
@@ -910,6 +781,11 @@ export class Enemy {
             .normalize();
 
         const distance = currentPos.distanceTo(playerPosition);
+
+        // Ranged attack - shoot if in range and cooldown ready
+        if (distance <= this.stats.shootRange && this.canShoot()) {
+            this.shootAtPlayer(playerPosition);
+        }
 
         // Slow down when approaching attack range
         let actualSpeed = this.stats.chaseSpeed;
@@ -926,84 +802,36 @@ export class Enemy {
     /**
      * Attack state
      */
-    private updateAttack(_deltaTime: number, playerPosition: THREE.Vector3): void {
+    private updateAttack(deltaTime: number, playerPosition: THREE.Vector3): void {
         // Face player
         this.faceTarget(playerPosition);
 
         // Stop movement when attacking
         this.physicsBody.body.velocity.set(0, 0, 0);
 
-        // Check if can attack (melee)
+        // Check if can attack
         const time = performance.now() / 1000;
         if (time - this.lastAttackTime >= this.stats.attackCooldown) {
             this.attack(playerPosition);
             this.lastAttackTime = time;
         }
-
-        // Also try to shoot if has ranged capability and in range
-        if (this.stats.hasRanged) {
-            const distance = this.mesh.position.distanceTo(playerPosition);
-            if (distance <= this.stats.shootRange && this.canShoot()) {
-                this.shootAtPlayer(playerPosition);
-            }
-        }
     }
 
     /**
-     * Evade state - move away from danger while trying to shoot
+     * Evade state - move sideways to avoid player
      */
     private updateEvade(deltaTime: number, playerPosition: THREE.Vector3): void {
-        // CRITICAL FIX: Use BACKWARD movement instead of sidestep
-        // Sideways movement (perpendicular to player) causes animation freezing
-        // because the character faces forward but moves sideways, which the animation
-        // system can't handle properly. Backward movement keeps facing and movement aligned.
-        const toPlayer = new THREE.Vector3().subVectors(playerPosition, this.mesh.position).normalize();
-        const evadeDir = toPlayer.clone().negate(); // Move AWAY from player (backward)
-
-        // Move in evade direction (backward, away from player)
-        this.move(evadeDir, this.stats.evadeSpeed);
+        // Move in evade direction using RUNNING speed (chaseSpeed)
+        this.move(this.evadeDirection, this.stats.chaseSpeed);
 
         // Face player while evading (to shoot)
         this.faceTarget(playerPosition);
-    }
 
-    /**
-     * Check if enemy can shoot (cooldown check)
-     */
-    private canShoot(): boolean {
-        const time = performance.now() / 1000;
-        return time - this.lastShootTime >= this.stats.shootCooldown;
-    }
-
-    /**
-     * Shoot at player position
-     */
-    private shootAtPlayer(playerPosition: THREE.Vector3): void {
-        this.lastShootTime = performance.now() / 1000;
-
-        // Calculate direction to player
-        const origin = this.mesh.position.clone();
-        origin.y += 1.5; // Shoot from chest height
-        const direction = new THREE.Vector3()
-            .subVectors(playerPosition, origin)
-            .normalize();
-
-        // Apply accuracy (add some randomness)
-        if (this.stats.shootAccuracy < 1.0) {
-            const accuracyError = (1 - this.stats.shootAccuracy) * 0.5; // Max error
-            direction.x += (Math.random() - 0.5) * accuracyError;
-            direction.y += (Math.random() - 0.5) * accuracyError;
-            direction.z += (Math.random() - 0.5) * accuracyError;
-            direction.normalize();
+        // Still try to shoot while evading if in range
+        const distance = this.mesh.position.distanceTo(playerPosition);
+        if (distance <= this.stats.shootRange && this.canShoot()) {
+            this.shootAtPlayer(playerPosition);
         }
-
-        // Call shoot callback to create projectile
-        if (this.onShootCallback) {
-            this.onShootCallback(origin, direction, this.stats.damage);
-        }
-
-        // Play shoot sound
-        this.soundManager.play('pistol_shot'); // Using pistol sound for now
     }
 
     /**
@@ -1013,41 +841,15 @@ export class Enemy {
         // Wake up the physics body so it responds to velocity changes
         this.physicsBody.body.wakeUp();
 
-        // CRITICAL: In evade state, DON'T smooth movement direction
-        // Evade requires precise perpendicular movement (side-step while facing player).
-        // Smoothing causes direction mismatch between movement and facing,
-        // resulting in animation freezing/ghosting.
-        const shouldSmoothMovement = this.state !== 'evade';
-
-        if (shouldSmoothMovement) {
-            // Smooth movement direction for normal state transitions
-            const smoothingFactor = 0.2;
-            this.targetMoveDirection.copy(direction);
-
-            if (this.currentMoveDirection.lengthSq() < 0.001) {
-                this.currentMoveDirection.copy(direction);
-            } else {
-                this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
-                this.currentMoveDirection.normalize();
-            }
-        } else {
-            // In evade: use exact direction, no smoothing
-            this.currentMoveDirection.copy(direction);
-        }
-
-        // Use direction for movement
-        const vx = this.currentMoveDirection.x * speed;
-        const vz = this.currentMoveDirection.z * speed;
+        // Set velocity to let physics engine handle movement
+        const vx = direction.x * speed;
+        const vz = direction.z * speed;
         this.physicsBody.body.velocity.set(vx, 0, vz);
 
         // CRITICAL: Keep enemy at ground level by counteracting gravity
         // Physics engine gravity (-9.82) will pull enemy down, so we need to keep Y position stable
         const targetY = 1; // Ground level + half height
         if (Math.abs(this.physicsBody.body.position.y - targetY) > 0.1) {
-            // Debug: log Y position correction
-            if (Math.abs(this.physicsBody.body.position.y - targetY) > 0.5) {
-                console.warn(`[Enemy] ${this.type} Y position abnormal: ${this.physicsBody.body.position.y.toFixed(2)}, correcting to ${targetY}`);
-            }
             this.physicsBody.body.position.y = targetY;
             this.physicsBody.body.velocity.y = 0;
         }
@@ -1072,19 +874,15 @@ export class Enemy {
             .normalize();
 
         if (direction.length() > 0.01 && this.modelRoot) {
-            const targetAngle = Math.atan2(direction.x, direction.z);
-
-            // CRITICAL: Direct rotation, no smoothing
-            // Smoothing rotation causes animation/movement mismatch
-            // when enemy needs to quickly face player (especially after state transitions).
-            this.modelRoot.rotation.y = targetAngle;
+            const angle = Math.atan2(direction.x, direction.z);
+            this.modelRoot.rotation.y = angle;
         }
     }
 
     /**
      * Attack player
      */
-    private attack(_playerPosition: THREE.Vector3): void {
+    private attack(playerPosition: THREE.Vector3): void {
         // Call attack callback to damage player
         if (this.onAttackCallback) {
             this.onAttackCallback(this.stats.damage);
@@ -1113,10 +911,39 @@ export class Enemy {
     }
 
     /**
-     * Set on ally death callback (for team awareness)
+     * Check if enemy can shoot (cooldown check)
      */
-    setOnAllyDeath(callback: (allyPosition: THREE.Vector3) => void): void {
-        this.onAllyDeathCallback = callback;
+    private canShoot(): boolean {
+        const time = performance.now() / 1000;
+        return time - this.lastShootTime >= 3.0; // 3 second cooldown
+    }
+
+    /**
+     * Shoot at player position
+     */
+    private shootAtPlayer(playerPosition: THREE.Vector3): void {
+        if (!this.onShootCallback) return;
+
+        this.lastShootTime = performance.now() / 1000;
+
+        // Calculate shoot origin (enemy's chest height)
+        const origin = this.mesh.position.clone();
+        origin.y += 1.5;
+
+        // Calculate direction to player
+        const direction = new THREE.Vector3()
+            .subVectors(playerPosition, origin)
+            .normalize();
+
+        // Apply accuracy (60% accuracy for now)
+        const accuracyError = 0.4 * 0.5;
+        direction.x += (Math.random() - 0.5) * accuracyError;
+        direction.y += (Math.random() - 0.5) * accuracyError;
+        direction.z += (Math.random() - 0.5) * accuracyError;
+        direction.normalize();
+
+        // Call shoot callback
+        this.onShootCallback(origin, direction, this.stats.damage);
     }
 
     /**
@@ -1124,13 +951,11 @@ export class Enemy {
      */
     notifyAllyDeath(allyPosition: THREE.Vector3): void {
         const distance = this.mesh.position.distanceTo(allyPosition);
-        if (distance <= this.stats.allyAlertRange && !this.isDead) {
+        const alertRange = 25; // Fixed alert range
+
+        if (distance <= alertRange && !this.isDead) {
             this.alertedByAlly = true;
             this.lastAlertTime = performance.now() / 1000;
-            // Switch to chase or evade state based on distance to player
-            this.state = 'evade';
-            this.evadeTimer = 2 + Math.random() * 2; // 躲避2-4秒
-            console.log(`[Enemy] ${this.type} alerted by ally death at distance ${distance.toFixed(1)}`);
         }
     }
 
