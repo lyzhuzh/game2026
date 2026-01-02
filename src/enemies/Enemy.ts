@@ -691,9 +691,15 @@ export class Enemy {
     update(deltaTime: number, playerPosition: THREE.Vector3): void {
         if (this.isDead) return;
 
-        // Update animation mixer
+        // CRITICAL: Use fixed time step for animation to match physics
+        // Physics uses fixed timestep, so animation should too for smooth visual sync.
+        // Using variable deltaTime causes animation to speed up/slow down with framerate,
+        // creating "ghosting" effect where body moves but animation stutters.
+        const fixedTimeStep = 1 / 60; // 60 FPS fixed timestep
+
+        // Update animation mixer with fixed time step
         if (this.mixer) {
-            this.mixer.update(deltaTime);
+            this.mixer.update(fixedTimeStep);
             this.updateAnimation();
         }
 
