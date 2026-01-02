@@ -11,7 +11,7 @@ import { GAME_ASSETS } from '../assets/AssetConfig';
 import { Time } from '../core/Time';
 import { SoundManager } from '../audio/SoundManager';
 
-export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
+export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'evade' | 'dead';
 export type EnemyType = 'grunt' | 'soldier' | 'heavy' | 'sniper';
 
 export interface EnemyStats {
@@ -31,6 +31,16 @@ export interface EnemyStats {
     detectionRange: number;
     loseSightRange: number;
 
+    // Ranged combat
+    hasRanged: boolean;        // 是否有远程攻击能力
+    shootRange: number;         // 射击范围
+    shootAccuracy: number;      // 射击精度 (0-1)
+    shootCooldown: number;      // 射击冷却时间
+
+    // AI behavior
+    evadeSpeed: number;         // 躲避移动速度
+    allyAlertRange: number;     // 队友死亡感知范围
+
     // Points
     scoreValue: number;
 }
@@ -39,56 +49,88 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
     grunt: {
         maxHealth: 50,
         health: 50,
-        moveSpeed: 10,  // 2 -> 10 (faster movement)
-        chaseSpeed: 15,  // 4 -> 15
+        moveSpeed: 10,
+        chaseSpeed: 15,
         rotationSpeed: 2,
         damage: 10,
         attackRange: 3,
         attackCooldown: 2.0,
         detectionRange: 15,
         loseSightRange: 25,
+        // Ranged combat - 基础敌人有简单射击能力
+        hasRanged: true,
+        shootRange: 15,
+        shootAccuracy: 0.4,
+        shootCooldown: 3.0,
+        // AI behavior
+        evadeSpeed: 8,
+        allyAlertRange: 20,
         scoreValue: 100
     },
 
     soldier: {
         maxHealth: 80,
         health: 80,
-        moveSpeed: 12,  // 2.5 -> 12
-        chaseSpeed: 18,  // 5 -> 18
+        moveSpeed: 12,
+        chaseSpeed: 18,
         rotationSpeed: 2.5,
         damage: 15,
         attackRange: 5,
         attackCooldown: 1.5,
         detectionRange: 20,
         loseSightRange: 30,
+        // Ranged combat - 士兵有较好的射击能力
+        hasRanged: true,
+        shootRange: 25,
+        shootAccuracy: 0.6,
+        shootCooldown: 2.0,
+        // AI behavior
+        evadeSpeed: 12,
+        allyAlertRange: 30,
         scoreValue: 200
     },
 
     heavy: {
         maxHealth: 200,
         health: 200,
-        moveSpeed: 8,  // 1.5 -> 8
-        chaseSpeed: 12,  // 3 -> 12
+        moveSpeed: 8,
+        chaseSpeed: 12,
         rotationSpeed: 1,
         damage: 25,
         attackRange: 4,
         attackCooldown: 2.5,
         detectionRange: 12,
         loseSightRange: 20,
+        // Ranged combat - 重装兵射击慢但伤害高
+        hasRanged: true,
+        shootRange: 20,
+        shootAccuracy: 0.5,
+        shootCooldown: 4.0,
+        // AI behavior - 移动慢
+        evadeSpeed: 6,
+        allyAlertRange: 25,
         scoreValue: 500
     },
 
     sniper: {
         maxHealth: 40,
         health: 40,
-        moveSpeed: 10,  // 2 -> 10
-        chaseSpeed: 12,  // 3 -> 12
+        moveSpeed: 10,
+        chaseSpeed: 12,
         rotationSpeed: 2,
         damage: 35,
         attackRange: 30,
         attackCooldown: 3.0,
         detectionRange: 25,
         loseSightRange: 35,
+        // Ranged combat - 狙击手精准但装填慢
+        hasRanged: true,
+        shootRange: 50,
+        shootAccuracy: 0.8,
+        shootCooldown: 5.0,
+        // AI behavior - 优先躲避
+        evadeSpeed: 15,
+        allyAlertRange: 40,
         scoreValue: 300
     }
 };
@@ -107,9 +149,18 @@ export class Enemy {
     private onDeathCallback?: (enemy: Enemy) => void;
     private onAttackCallback?: (damage: number) => void;
     private onHurtCallback?: () => void;
+    private onShootCallback?: (origin: THREE.Vector3, direction: THREE.Vector3, damage: number) => void;
+    private onAllyDeathCallback?: (allyPosition: THREE.Vector3) => void;
 
     // Combat
     private lastAttackTime: number = 0;
+    private lastShootTime: number = 0;
+
+    // AI behavior
+    private evadeTimer: number = 0;
+    private evadeDirection: THREE.Vector3 = new THREE.Vector3();
+    private alertedByAlly: boolean = false;
+    private lastAlertTime: number = 0;
 
     // Patrol
     private patrolPoints: THREE.Vector3[] = [];
@@ -561,6 +612,9 @@ export class Enemy {
                     case 'attack':
                         this.playAnimation('attack', false);
                         break;
+                    case 'evade':
+                        this.playAnimation('run', true); // Use run animation for evading
+                        break;
                 }
                 this.previousState = this.state;
             }
@@ -642,6 +696,9 @@ export class Enemy {
             case 'attack':
                 this.updateAttack(deltaTime, playerPosition);
                 break;
+            case 'evade':
+                this.updateEvade(deltaTime, playerPosition);
+                break;
         }
 
         // Sync physics body with mesh
@@ -653,22 +710,26 @@ export class Enemy {
      */
     private updateState(playerPosition: THREE.Vector3): void {
         const distance = this.mesh.position.distanceTo(playerPosition);
+        const time = performance.now() / 1000;
 
         switch (this.state) {
             case 'idle':
             case 'patrol':
                 // Detect player
-                if (distance < this.stats.detectionRange) {
+                if (distance < this.stats.detectionRange || this.alertedByAlly) {
                     this.state = 'chase';
                     // console.log(`[Enemy] ${this.type} detected player at distance ${distance.toFixed(1)}`);
                 }
                 break;
 
             case 'chase':
-                // Check if in attack range
+                // Check if can shoot (ranged attack)
+                if (this.stats.hasRanged && distance <= this.stats.shootRange && this.canShoot()) {
+                    this.shootAtPlayer(playerPosition);
+                }
+                // Check if in melee attack range
                 if (distance < this.stats.attackRange) {
                     this.state = 'attack';
-                    // console.log(`[Enemy] ${this.type} entering attack state, distance: ${distance.toFixed(1)}`);
                 }
                 // Lose sight of player
                 else if (distance > this.stats.loseSightRange) {
@@ -680,9 +741,30 @@ export class Enemy {
                 // Player out of range
                 if (distance > this.stats.attackRange * 1.5) {
                     this.state = 'chase';
-                    // console.log(`[Enemy] ${this.type} leaving attack state, distance: ${distance.toFixed(1)}`);
                 }
                 break;
+
+            case 'evade':
+                // Update evade timer
+                this.evadeTimer -= deltaTime;
+                if (this.evadeTimer <= 0) {
+                    // After evading, switch to chase or attack based on distance
+                    if (distance < this.stats.attackRange) {
+                        this.state = 'attack';
+                    } else {
+                        this.state = 'chase';
+                    }
+                }
+                // Still try to shoot while evading if possible
+                if (this.stats.hasRanged && distance <= this.stats.shootRange && this.canShoot()) {
+                    this.shootAtPlayer(playerPosition);
+                }
+                break;
+        }
+
+        // Clear alerted status after a while
+        if (this.alertedByAlly && time - this.lastAlertTime > 10) {
+            this.alertedByAlly = false;
         }
     }
 
@@ -817,12 +899,82 @@ export class Enemy {
         // Stop movement when attacking
         this.physicsBody.body.velocity.set(0, 0, 0);
 
-        // Check if can attack
+        // Check if can attack (melee)
         const time = performance.now() / 1000;
         if (time - this.lastAttackTime >= this.stats.attackCooldown) {
             this.attack(playerPosition);
             this.lastAttackTime = time;
         }
+
+        // Also try to shoot if has ranged capability and in range
+        if (this.stats.hasRanged) {
+            const distance = this.mesh.position.distanceTo(playerPosition);
+            if (distance <= this.stats.shootRange && this.canShoot()) {
+                this.shootAtPlayer(playerPosition);
+            }
+        }
+    }
+
+    /**
+     * Evade state - move away from danger while trying to shoot
+     */
+    private updateEvade(deltaTime: number, playerPosition: THREE.Vector3): void {
+        // Calculate evade direction (perpendicular to player direction)
+        const toPlayer = new THREE.Vector3().subVectors(playerPosition, this.mesh.position).normalize();
+        const evadeDir = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x).normalize();
+
+        // If this is the first frame of evade, pick a random perpendicular direction
+        if (this.evadeDirection.length() === 0) {
+            if (Math.random() > 0.5) {
+                evadeDir.negate();
+            }
+            this.evadeDirection.copy(evadeDir);
+        }
+
+        // Move in evade direction
+        this.move(this.evadeDirection, this.stats.evadeSpeed);
+
+        // Face player while evading (to shoot)
+        this.faceTarget(playerPosition);
+    }
+
+    /**
+     * Check if enemy can shoot (cooldown check)
+     */
+    private canShoot(): boolean {
+        const time = performance.now() / 1000;
+        return time - this.lastShootTime >= this.stats.shootCooldown;
+    }
+
+    /**
+     * Shoot at player position
+     */
+    private shootAtPlayer(playerPosition: THREE.Vector3): void {
+        this.lastShootTime = performance.now() / 1000;
+
+        // Calculate direction to player
+        const origin = this.mesh.position.clone();
+        origin.y += 1.5; // Shoot from chest height
+        const direction = new THREE.Vector3()
+            .subVectors(playerPosition, origin)
+            .normalize();
+
+        // Apply accuracy (add some randomness)
+        if (this.stats.shootAccuracy < 1.0) {
+            const accuracyError = (1 - this.stats.shootAccuracy) * 0.5; // Max error
+            direction.x += (Math.random() - 0.5) * accuracyError;
+            direction.y += (Math.random() - 0.5) * accuracyError;
+            direction.z += (Math.random() - 0.5) * accuracyError;
+            direction.normalize();
+        }
+
+        // Call shoot callback to create projectile
+        if (this.onShootCallback) {
+            this.onShootCallback(origin, direction, this.stats.damage);
+        }
+
+        // Play shoot sound
+        this.soundManager.play('pistol_shot'); // Using pistol sound for now
     }
 
     /**
@@ -892,6 +1044,35 @@ export class Enemy {
      */
     setOnHurt(callback: () => void): void {
         this.onHurtCallback = callback;
+    }
+
+    /**
+     * Set on shoot callback (for ranged attacks)
+     */
+    setOnShoot(callback: (origin: THREE.Vector3, direction: THREE.Vector3, damage: number) => void): void {
+        this.onShootCallback = callback;
+    }
+
+    /**
+     * Set on ally death callback (for team awareness)
+     */
+    setOnAllyDeath(callback: (allyPosition: THREE.Vector3) => void): void {
+        this.onAllyDeathCallback = callback;
+    }
+
+    /**
+     * Notify this enemy that an ally died nearby
+     */
+    notifyAllyDeath(allyPosition: THREE.Vector3): void {
+        const distance = this.mesh.position.distanceTo(allyPosition);
+        if (distance <= this.stats.allyAlertRange && !this.isDead) {
+            this.alertedByAlly = true;
+            this.lastAlertTime = performance.now() / 1000;
+            // Switch to chase or evade state based on distance to player
+            this.state = 'evade';
+            this.evadeTimer = 2 + Math.random() * 2; // 躲避2-4秒
+            console.log(`[Enemy] ${this.type} alerted by ally death at distance ${distance.toFixed(1)}`);
+        }
     }
 
     /**

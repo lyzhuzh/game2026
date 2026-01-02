@@ -32,6 +32,14 @@ export class EnemyManager {
     private spawnRadius: number = 50;
     private maxConcurrentEnemies: number = 10;
 
+    // Level boundaries (must match LevelBuilder config)
+    private levelBounds = {
+        xMin: -95,  // 留出5米缓冲区
+        xMax: 95,
+        zMin: -95,
+        zMax: 95
+    };
+
     // Callbacks
     private onEnemyDeathCallback?: (enemy: Enemy) => void;
     private onEnemyAttackCallback?: (damage: number) => void;
@@ -93,6 +101,22 @@ export class EnemyManager {
     }
 
     /**
+     * Set level boundaries for enemy spawning
+     * Call this if level size changes
+     */
+    setLevelBounds(xMin: number, xMax: number, zMin: number, zMax: number): void {
+        this.levelBounds = { xMin, xMax, zMin, zMax };
+        console.log(`[EnemyManager] Level bounds updated: x[${xMin}, ${xMax}], z[${zMin}, ${zMax}]`);
+    }
+
+    /**
+     * Get current level bounds
+     */
+    getLevelBounds(): typeof this.levelBounds {
+        return { ...this.levelBounds };
+    }
+
+    /**
      * Spawn an enemy
      */
     spawnEnemy(config: EnemySpawnConfig): Enemy | null {
@@ -113,9 +137,12 @@ export class EnemyManager {
             enemy.setPatrolPoints(config.patrolPoints);
         }
 
-        // Set death callback
+        // Set death callback - also notifies nearby allies
         if (this.onEnemyDeathCallback) {
-            enemy.setOnDeath(this.onEnemyDeathCallback);
+            enemy.setOnDeath((e) => {
+                this.notifyAlliesOfDeath(e);
+                this.onEnemyDeathCallback!(e);
+            });
         }
 
         // Set attack callback
@@ -128,10 +155,57 @@ export class EnemyManager {
             enemy.setOnHurt(this.onEnemyHurtCallback);
         }
 
+        // Set shoot callback for ranged attacks
+        enemy.setOnShoot((origin, direction, damage) => this.handleEnemyShoot(origin, direction, damage));
+
         this.enemies.push(enemy);
         this.enemiesRemaining++;
 
         return enemy;
+    }
+
+    /**
+     * Notify nearby allies when an enemy dies
+     */
+    private notifyAlliesOfDeath(deadEnemy: Enemy): void {
+        const deathPosition = deadEnemy.getPosition();
+
+        for (const enemy of this.enemies) {
+            if (enemy === deadEnemy || enemy.isEnemyDead()) {
+                continue;
+            }
+            // Notify each living enemy about the death
+            enemy.notifyAllyDeath(deathPosition);
+        }
+    }
+
+    /**
+     * Handle enemy shooting - create projectile
+     */
+    private handleEnemyShoot(origin: THREE.Vector3, direction: THREE.Vector3, damage: number): void {
+        // Create a simple hitscan for enemy shooting
+        // For now, we'll directly damage the player if the raycast hits
+        const raycaster = new THREE.Raycaster(origin, direction, 0, 100); // 100 unit range
+        const playerPos = this.playerPosition;
+
+        // Simple distance check to see if player is in shooting direction
+        const toPlayer = new THREE.Vector3().subVectors(playerPos, origin).normalize();
+        const dotProduct = direction.dot(toPlayer);
+
+        // If player is in the direction of the shot (within 30 degrees)
+        if (dotProduct > 0.87) {
+            const distance = origin.distanceTo(playerPos);
+            if (distance <= 50) { // Max shooting range
+                // Apply damage with distance falloff
+                const falloff = Math.max(0.5, 1 - distance / 100);
+                const finalDamage = damage * falloff;
+
+                // Call attack callback to damage player
+                if (this.onEnemyAttackCallback) {
+                    this.onEnemyAttackCallback(finalDamage);
+                }
+            }
+        }
     }
 
     /**
@@ -156,6 +230,7 @@ export class EnemyManager {
     /**
      * Get random spawn position
      * Excludes center safe zone around spawn point
+     * Ensures enemies spawn within level boundaries
      */
     private getRandomSpawnPosition(center: THREE.Vector3, radius: number): THREE.Vector3 {
         // 中心安全区域（玩家出生点附近，与 LevelBuilder 中的排除区域一致）
@@ -166,9 +241,10 @@ export class EnemyManager {
             zMax: 35
         };
 
-        const minDistance = 50; // 最小距离，远离中心安全区域
+        const minDistance = 30; // 最小距离，远离中心安全区域
         let position: THREE.Vector3;
         let attempts = 0;
+        const maxAttempts = 200;
 
         do {
             const angle = Math.random() * Math.PI * 2;
@@ -181,13 +257,61 @@ export class EnemyManager {
             );
 
             attempts++;
+
+            // 如果尝试太多次，缩小生成半径
+            if (attempts > maxAttempts / 2 && radius > 40) {
+                radius = 40;
+            }
         } while (
-            attempts < 100 &&
-            position.x >= safeZone.xMin && position.x <= safeZone.xMax &&
-            position.z >= safeZone.zMin && position.z <= safeZone.zMax
+            attempts < maxAttempts && (
+                // 在安全区域内
+                (position.x >= safeZone.xMin && position.x <= safeZone.xMax &&
+                 position.z >= safeZone.zMin && position.z <= safeZone.zMax) ||
+                // 在关卡边界外
+                (position.x < this.levelBounds.xMin || position.x > this.levelBounds.xMax ||
+                 position.z < this.levelBounds.zMin || position.z > this.levelBounds.zMax)
+            )
         );
 
+        // 如果仍然找不到合适位置，使用安全位置
+        if (attempts >= maxAttempts) {
+            console.warn('[EnemyManager] Failed to find valid spawn position, using fallback');
+            position = this.getFallbackSpawnPosition(center);
+        }
+
         return position;
+    }
+
+    /**
+     * Get fallback spawn position when random spawning fails
+     * Returns a position guaranteed to be within level bounds
+     */
+    private getFallbackSpawnPosition(center: THREE.Vector3): THREE.Vector3 {
+        const corners = [
+            new THREE.Vector3(this.levelBounds.xMin, 0, this.levelBounds.zMin),
+            new THREE.Vector3(this.levelBounds.xMax, 0, this.levelBounds.zMin),
+            new THREE.Vector3(this.levelBounds.xMin, 0, this.levelBounds.zMax),
+            new THREE.Vector3(this.levelBounds.xMax, 0, this.levelBounds.zMax)
+        ];
+
+        // 找离中心最远且在边界内的角落
+        let bestCorner = corners[0];
+        let maxDistance = 0;
+
+        for (const corner of corners) {
+            const dist = center.distanceTo(corner);
+            if (dist > maxDistance) {
+                maxDistance = dist;
+                bestCorner = corner;
+            }
+        }
+
+        // 从角落向内偏移5米
+        return new THREE.Vector3(
+            Math.max(this.levelBounds.xMin + 5, Math.min(this.levelBounds.xMax - 5, bestCorner.x * 0.9)),
+            0,
+            Math.max(this.levelBounds.zMin + 5, Math.min(this.levelBounds.zMax - 5, bestCorner.z * 0.9))
+        );
     }
 
     /**

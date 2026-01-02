@@ -4,6 +4,8 @@
  */
 
 import * as THREE from 'three';
+import { EnemyManager } from '../enemies/EnemyManager';
+import { Enemy } from '../enemies/Enemy';
 
 export enum MarkMode {
     POINT = 'point',           // Single point marking
@@ -52,6 +54,7 @@ export class DebugTools {
     private scene: THREE.Scene;
     private camera: THREE.Camera;
     private raycaster: THREE.Raycaster;
+    private enemyManager: EnemyManager | null = null;
 
     // State
     private currentMode: MarkMode = MarkMode.POINT;
@@ -69,6 +72,7 @@ export class DebugTools {
     private lines: THREE.Line[] = [];
     private labels: THREE.Sprite[] = [];
     private boundaryBoxes: THREE.LineSegments[] = [];
+    private enemyDebugMarkers: THREE.Object3D[] = [];
 
     // Real-time preview box
     private previewBox: THREE.LineSegments | null = null;
@@ -80,10 +84,11 @@ export class DebugTools {
     private readonly previewBoxColor = 0xffa500; // 橙色用于预览框
     private readonly markerSize = 0.2;
 
-    constructor(scene: THREE.Scene, camera: THREE.Camera) {
+    constructor(scene: THREE.Scene, camera: THREE.Camera, enemyManager?: EnemyManager) {
         this.scene = scene;
         this.camera = camera;
         this.raycaster = new THREE.Raycaster();
+        this.enemyManager = enemyManager || null;
     }
 
     /**
@@ -130,6 +135,7 @@ export class DebugTools {
             if (key === 'p') this.printSummary();
             if (key === 'enter') this.finishCurrentMeasurement();
             if (key === 'escape') this.cancelCurrentMeasurement();
+            if (key === 'k') this.debugEnemies(); // K for Kill list / enemies
         });
     }
 
@@ -569,6 +575,9 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
 
         this._distanceLines = [];
 
+        // Clear enemy debug markers
+        this.clearEnemyDebugMarkers();
+
         console.log('[DebugTools] All debug markers cleared');
     }
 
@@ -749,6 +758,7 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
         console.log('[DebugTools]');
         console.log('[DebugTools] ACTIONS:');
         console.log('[DebugTools]   M - Mark point at crosshair');
+        console.log('[DebugTools]   K - Debug enemies (show all enemies info)');
         console.log('[DebugTools]   ENTER - Finish current measurement');
         console.log('[DebugTools]   ESC - Cancel current measurement');
         console.log('[DebugTools]   C - Clear all markers');
@@ -766,5 +776,117 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
     setActive(active: boolean): void {
         this.isActive = active;
         console.log(`[DebugTools] ${active ? 'Enabled' : 'Disabled'}`);
+    }
+
+    /**
+     * Debug enemies - show all living enemies with markers and console info
+     */
+    debugEnemies(): void {
+        if (!this.enemyManager) {
+            console.warn('[DebugTools] EnemyManager not available');
+            return;
+        }
+
+        // Clear previous enemy debug markers
+        this.clearEnemyDebugMarkers();
+
+        // Get all enemies from the manager
+        const enemies = (this.enemyManager as any).enemies || [];
+        const playerPos = this.camera.position.clone();
+
+        // Get level bounds
+        const levelBounds = (this.enemyManager as any).getLevelBounds ? (this.enemyManager as any).getLevelBounds() : null;
+
+        console.log('='.repeat(60));
+        console.log('[DebugTools] === ENEMY DEBUG INFO ===');
+        console.log(`[DebugTools] Total enemies: ${enemies.length}`);
+
+        if (levelBounds) {
+            console.log(`[DebugTools] Level bounds: X[${levelBounds.xMin}, ${levelBounds.xMax}], Z[${levelBounds.zMin}, ${levelBounds.zMax}]`);
+        }
+
+        let livingCount = 0;
+        let deadCount = 0;
+        let outOfRangeCount = 0;
+        let outOfBoundsCount = 0;
+
+        for (let i = 0; i < enemies.length; i++) {
+            const enemy = enemies[i] as Enemy;
+            const pos = enemy.getPosition();
+            const distance = playerPos.distanceTo(pos);
+            const state = enemy.getState();
+            const isDead = enemy.isEnemyDead();
+            const health = enemy.getHealthPercentage();
+            const type = enemy.type;
+
+            if (isDead) {
+                deadCount++;
+                console.log(`[DebugTools] [${i}] ❌ ${type.toUpperCase()} - DEAD`);
+            } else {
+                livingCount++;
+                const distanceToPlayer = distance.toFixed(1);
+                const stateEmoji = state === 'chase' ? '🏃' : state === 'attack' ? '⚔️' : state === 'patrol' ? '🚶' : '😴';
+
+                // Check if enemy is out of bounds
+                const isOutOfBounds = levelBounds && (
+                    pos.x < levelBounds.xMin || pos.x > levelBounds.xMax ||
+                    pos.z < levelBounds.zMin || pos.z > levelBounds.zMax
+                );
+
+                if (isOutOfBounds) {
+                    outOfBoundsCount++;
+                }
+
+                // Use different color for out of bounds enemies (red instead of magenta)
+                const markerColor = isOutOfBounds ? 0xff0000 : 0xff00ff;
+
+                console.log(`[DebugTools] [${i}] ${stateEmoji} ${type.toUpperCase()} - State: ${state}, HP: ${(health * 100).toFixed(0)}%, Distance: ${distanceToPlayer}m`);
+                console.log(`[DebugTools]     Position: (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`);
+
+                if (isOutOfBounds) {
+                    console.log(`[DebugTools]     🚨 OUT OF BOUNDS! Enemy is outside level walls!`);
+                }
+
+                // Add visual marker at enemy position
+                const marker = this.addPointMarker(pos, markerColor);
+                this.enemyDebugMarkers.push(marker);
+
+                // Draw line from player to enemy
+                this.drawLine(playerPos, pos, markerColor);
+                this.enemyDebugMarkers.push(this.lines.pop()! as THREE.Line);
+
+                // Check if enemy is in AI detection range
+                if (distance > 50) {
+                    outOfRangeCount++;
+                    console.log(`[DebugTools]     ⚠️ OUT OF DETECTION RANGE!`);
+                }
+            }
+        }
+
+        console.log('='.repeat(60));
+        console.log(`[DebugTools] Living enemies: ${livingCount}`);
+        console.log(`[DebugTools] Dead enemies (pending cleanup): ${deadCount}`);
+        console.log(`[DebugTools] Out of detection range: ${outOfRangeCount}`);
+        console.log(`[DebugTools] Out of bounds: ${outOfBoundsCount} 🚨`);
+        console.log(`[DebugTools] Visual markers: ${this.enemyDebugMarkers.length} (purple spheres + lines)`);
+        console.log('[DebugTools] Press C to clear debug markers');
+        console.log('='.repeat(60));
+    }
+
+    /**
+     * Clear enemy debug markers
+     */
+    private clearEnemyDebugMarkers(): void {
+        for (const marker of this.enemyDebugMarkers) {
+            this.scene.remove(marker);
+            if (marker instanceof THREE.Line) {
+                marker.geometry.dispose();
+                (marker.material as THREE.Material).dispose();
+            } else if (marker instanceof THREE.Mesh) {
+                marker.geometry.dispose();
+                (marker.material as THREE.Material).dispose();
+            }
+        }
+        this.enemyDebugMarkers = [];
     }
 }

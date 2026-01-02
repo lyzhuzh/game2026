@@ -207,8 +207,7 @@ export class Game {
         // Initialize level builder
         this.levelBuilder = new LevelBuilder(this.scene, this.physics);
 
-        // Initialize debug tools
-        this.debugTools = new DebugTools(this.scene, this.camera);
+        // Debug tools will be initialized after enemy manager (which is created later)
 
         // Create renderer
         const canvas = document.createElement('canvas');
@@ -231,6 +230,9 @@ export class Game {
 
         // Initialize enemy system first (needed by weapon onHit callback)
         this.enemies = new EnemyManager(this.physics, this.scene, this.timerManager);
+
+        // Initialize debug tools (after enemy manager so we can pass it)
+        this.debugTools = new DebugTools(this.scene, this.camera, this.enemies);
 
         // Set enemy death callback to update player score and kills
         this.enemies.setOnEnemyDeath((enemy) => {
