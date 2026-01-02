@@ -455,8 +455,8 @@ export class Enemy {
 
         // Position model so its bottom is at y=0 (on the ground)
         // For SkinnedMesh, the bounding box may not reflect actual feet position
-        // Add significant offset to push model down to ground
-        const groundOffset = 1.0; // Extra offset to push model down
+        // Reduced offset to prevent model from sinking into ground
+        const groundOffset = 0.0; // No extra offset, let -minY handle the positioning
         model.position.set(0, -minY - groundOffset, 0);
         model.rotation.set(0, 0, 0);
 
