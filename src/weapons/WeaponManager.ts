@@ -76,7 +76,7 @@ export class WeaponManager {
      */
     private initializeWeapons(): void {
         // Weapon types
-        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper', 'rocket_launcher', 'flamethrower'];
+        this.weaponTypes = ['pistol', 'rifle', 'shotgun', 'smg', 'sniper'];
 
         // Initialize weapons based on type
         for (const type of this.weaponTypes) {
@@ -163,7 +163,7 @@ export class WeaponManager {
      */
     private handleWeaponSwitching(): void {
         // Number keys 1-7 for weapon switching
-        for (let i = 1; i <= 7; i++) {
+        for (let i = 1; i <= 5; i++) {
             if (this.input.isActionJustPressed(`weapon_${i}` as any)) {
                 const weaponType = this.weaponTypes[i - 1];
                 if (weaponType) {

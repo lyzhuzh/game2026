@@ -24,6 +24,7 @@ export class WeaponRenderer {
     private weaponGroup: THREE.Group;
     private currentWeaponModel?: THREE.Group;
     private currentWeaponId: string = '';
+    private currentWeaponType?: WeaponType;
 
     // Third-person weapon (attached to player model in main scene)
     private thirdPersonWeaponGroup?: THREE.Group;
@@ -74,18 +75,27 @@ export class WeaponRenderer {
     private tpWeaponOffsets: Map<WeaponType, THREE.Vector3> = new Map([
         ['pistol', new THREE.Vector3(0.00, 0.04, 0.00)],
         ['rifle', new THREE.Vector3(-0.02, 0.05, 0.00)],
+        ['shotgun', new THREE.Vector3(0.00, 0.04, 0.00)],   // Pistol-like
+        ['smg', new THREE.Vector3(0.00, 0.04, 0.00)],       // Pistol-like
+        ['sniper', new THREE.Vector3(-0.02, 0.06, 0.00)],
     ]);
 
     // Rotations relative to right hand bone (Euler X, Y, Z)
     private tpWeaponRotations: Map<WeaponType, THREE.Vector3> = new Map([
         ['pistol', new THREE.Vector3(7.95, 0.00, -2.50)],
         ['rifle', new THREE.Vector3(1.60, 0.60, -2.45)],
+        ['shotgun', new THREE.Vector3(7.95, 0.00, -2.50)],  // Pistol-like
+        ['smg', new THREE.Vector3(7.95, 0.00, -2.50)],      // Pistol-like
+        ['sniper', new THREE.Vector3(1.60, 0.60, -2.45)],
     ]);
 
     // Scales for third-person view
     private tpWeaponScales: Map<WeaponType, number> = new Map([
         ['pistol', 0.028],
         ['rifle', 0.042],
+        ['shotgun', 0.035],  // Pistol-like scale
+        ['smg', 0.032],      // Pistol-like scale
+        ['sniper', 0.048],
     ]);
 
     // === DEBUG: Third-person weapon position (relative to player) ===
@@ -213,11 +223,9 @@ export class WeaponRenderer {
             }
 
             // If we have a current weapon type but no TP model, load it
-            if (this.currentWeaponId && !this.currentThirdPersonWeaponModel) {
-                // Extract weapon type from asset ID
-                const weaponType = this.currentWeaponId.replace('weapon_', '') as WeaponType;
-                console.log(`[WeaponRenderer] Loading TP weapon on mode switch: ${weaponType}`);
-                this.showThirdPersonWeapon(weaponType);
+            if (this.currentWeaponType && !this.currentThirdPersonWeaponModel) {
+                console.log(`[WeaponRenderer] Loading TP weapon on mode switch: ${this.currentWeaponType}`);
+                this.showThirdPersonWeapon(this.currentWeaponType);
             }
             if (this.currentThirdPersonWeaponModel) {
                 this.currentThirdPersonWeaponModel.visible = true;
@@ -253,6 +261,9 @@ export class WeaponRenderer {
         if (this.currentWeaponId === assetId && this.currentWeaponModel) {
             return;
         }
+
+        // Track the actual weapon type for view mode switching
+        this.currentWeaponType = weaponType;
 
         // Remove current weapon models
         this.hideCurrentWeapon();
@@ -297,11 +308,19 @@ export class WeaponRenderer {
                 // Add to weapon group
                 this.weaponGroup.add(this.currentWeaponModel!);
 
-                // Enable shadows
+                // Enable shadows and clone materials
                 this.currentWeaponModel!.traverse((child) => {
                     if (child instanceof THREE.Mesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        // Clone materials to avoid sharing
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(mat => mat.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                        }
                     }
                 });
 
@@ -321,10 +340,6 @@ export class WeaponRenderer {
      * Load third-person weapon
      */
     private async showThirdPersonWeapon(weaponType: WeaponType): Promise<void> {
-        // DISABLED per user request: No weapon model in third person view
-        return;
-
-        /* Original implementation disabled
         if (!this.thirdPersonWeaponGroup) return;
 
         const assetId = this.getWeaponAssetId(weaponType);
@@ -359,11 +374,19 @@ export class WeaponRenderer {
                     console.log(`[WeaponRenderer] WARNING: Added TP weapon directly to scene (no attachment point)`);
                 }
 
-                // Enable shadows
+                // Enable shadows and clone materials
                 this.currentThirdPersonWeaponModel!.traverse((child) => {
                     if (child instanceof THREE.Mesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
+                        // Clone materials to avoid sharing
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(mat => mat.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                        }
                     }
                 });
 
@@ -375,7 +398,6 @@ export class WeaponRenderer {
         } catch (error) {
             console.warn(`[WeaponRenderer] Failed to load third-person ${weaponType}:`, error);
         }
-        */
     }
 
     /**

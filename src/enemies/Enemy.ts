@@ -197,21 +197,88 @@ export class Enemy {
                 // Deep clone the scene manually
                 const clonedScene = this.deepCloneGltf(gltf.scene);
 
-                // Extract animations if available
+                // Use attachModel to setup mesh, animations, and scaling
                 const animations = gltf.animations || [];
                 this.attachModel(clonedScene, animations);
+
+                // Rotate model 180 degrees to face forward (common GLTF issue)
+                if (this.modelRoot) {
+                    this.modelRoot.rotation.y = Math.PI;
+                }
+
+                // Load weapon
+                await this.loadWeapon();
             } else {
+                console.warn(`[Enemy] Failed to load GLTF scene for ${this.type}`);
                 this.createPlaceholder();
             }
         } catch (error) {
-            console.warn(`[Enemy] Failed to load model for ${this.type}:`, error);
+            console.error(`[Enemy] Error loading model for ${this.type}:`, error);
             this.createPlaceholder();
         }
     }
 
     /**
-     * Deep clone GLTF scene with materials and skeleton support
+     * Load and attach weapon (Rifle)
      */
+    private async loadWeapon(): Promise<void> {
+        if (!this.modelRoot) return;
+
+        // Find RightForeArm bone
+        let attachmentBone: THREE.Bone | null = null;
+        this.modelRoot.traverse((child) => {
+            if (child instanceof THREE.Bone) {
+                if (child.name.includes('RightForeArm') || child.name.includes('forearm.R')) {
+                    attachmentBone = child;
+                }
+            }
+        });
+
+        if (!attachmentBone) {
+            console.warn('[Enemy] RightForeArm bone not found for weapon attachment');
+            return;
+        }
+
+        // Load rifle asset
+        const weaponConfig = GAME_ASSETS.find(a => a.id === 'weapon_smg'); // Same asset as player's rifle
+        if (!weaponConfig) return;
+
+        try {
+            const gltf = await this.assetManager.loadAsset(weaponConfig);
+            if (gltf && gltf.scene) {
+                const weaponModel = gltf.scene.clone();
+
+                // Apply calibration data (Rifle - Forearm)
+                // Offset: (-0.02, 0.05, 0.00)
+                // Rot: (1.60, 0.60, -2.45)
+                // Scale: 0.042
+                weaponModel.position.set(-0.02, 0.05, 0.00);
+                weaponModel.rotation.set(1.60, 0.60, -2.45);
+                weaponModel.scale.setScalar(0.042);
+
+                // Attach to bone
+                attachmentBone.add(weaponModel);
+
+                // Enable shadows and clone materials for weapon
+                weaponModel.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Clone materials to avoid sharing
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(mat => mat.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('[Enemy] Failed to load weapon:', error);
+        }
+    }
     private deepCloneGltf(source: THREE.Object3D): THREE.Object3D {
         // First, collect all bones from original source by name
         const originalBonesByName = new Map<string, THREE.Bone>();
@@ -271,12 +338,16 @@ export class Enemy {
     /**
      * Attach loaded model to mesh
      */
-    private attachModel(model: THREE.Group, animations: THREE.AnimationClip[] = []): void {
+    private attachModel(model: THREE.Group | THREE.Object3D, animations: THREE.AnimationClip[] = []): void {
+        this.modelRoot = model as THREE.Group;
+
         // Clear existing children
         while (this.mesh.children.length > 0) {
             const child = this.mesh.children[0];
             this.mesh.remove(child);
         }
+
+        this.mesh.add(model);
 
         // Setup animation mixer and clips
         if (animations.length > 0) {
