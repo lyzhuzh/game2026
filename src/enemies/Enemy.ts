@@ -162,6 +162,10 @@ export class Enemy {
     private alertedByAlly: boolean = false;
     private lastAlertTime: number = 0;
 
+    // Smooth movement to prevent sudden direction changes
+    private currentMoveDirection: THREE.Vector3 = new THREE.Vector3();
+    private targetMoveDirection: THREE.Vector3 = new THREE.Vector3();
+
     // Patrol
     private patrolPoints: THREE.Vector3[] = [];
     private currentPatrolIndex: number = 0;
@@ -998,20 +1002,18 @@ export class Enemy {
         // Wake up the physics body so it responds to velocity changes
         this.physicsBody.body.wakeUp();
 
-        // Set velocity to let physics engine handle movement
-        const vx = direction.x * speed;
-        const vz = direction.z * speed;
-        this.physicsBody.body.velocity.set(vx, 0, vz);
+        // Smooth movement direction to prevent sudden "ghosting" when changing states
+        // When switching from chase to evade, direction changes 90 degrees instantly,
+        // which causes visual artifacts. Smooth the transition.
+        const smoothingFactor = 0.2; // Lower = more smooth but slower response
+        this.targetMoveDirection.copy(direction);
+        this.currentMoveDirection.lerp(this.targetMoveDirection, smoothingFactor);
+        this.currentMoveDirection.normalize();
 
-        // CRITICAL: Immediately update position to avoid "ghosting" visual artifacts
-        // Since velocity is set AFTER physics step in the game loop, the new velocity
-        // won't take effect until the NEXT physics step. This causes the mesh to show
-        // the old position for one frame, then jump to the new position next frame.
-        // Solution: Manually update position immediately after setting velocity.
-        const deltaTime = Math.min(Time.deltaTime, 0.05); // Cap to prevent huge jumps on lag
-        const moveDistance = speed * deltaTime;
-        this.physicsBody.body.position.x += direction.x * moveDistance;
-        this.physicsBody.body.position.z += direction.z * moveDistance;
+        // Use smoothed direction for movement
+        const vx = this.currentMoveDirection.x * speed;
+        const vz = this.currentMoveDirection.z * speed;
+        this.physicsBody.body.velocity.set(vx, 0, vz);
 
         // CRITICAL: Keep enemy at ground level by counteracting gravity
         // Physics engine gravity (-9.82) will pull enemy down, so we need to keep Y position stable
@@ -1026,6 +1028,7 @@ export class Enemy {
         }
 
         // 更新脚步声计时器
+        const deltaTime = Time.deltaTime;
         this.footstepTimer += deltaTime;
         if (this.footstepTimer >= this.footstepInterval) {
             this.soundManager.play('enemy_footstep');
@@ -1044,8 +1047,27 @@ export class Enemy {
             .normalize();
 
         if (direction.length() > 0.01 && this.modelRoot) {
-            const angle = Math.atan2(direction.x, direction.z);
-            this.modelRoot.rotation.y = angle;
+            const targetAngle = Math.atan2(direction.x, direction.z);
+
+            // Smooth rotation to prevent sudden "ghosting" visual artifacts
+            // When switching states (especially to evade), sudden rotation changes
+            // can cause visual glitches. Smooth the transition over a few frames.
+            const rotationSpeed = 10; // radians per second
+            const currentAngle = this.modelRoot.rotation.y;
+            const deltaTime = Math.min(Time.deltaTime, 0.05);
+
+            // Find shortest rotation direction
+            let angleDiff = targetAngle - currentAngle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+            // Limit rotation speed
+            const maxRotation = rotationSpeed * deltaTime;
+            if (Math.abs(angleDiff) > maxRotation) {
+                angleDiff = Math.sign(angleDiff) * maxRotation;
+            }
+
+            this.modelRoot.rotation.y = currentAngle + angleDiff;
         }
     }
 
