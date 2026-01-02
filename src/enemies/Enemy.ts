@@ -1003,6 +1003,16 @@ export class Enemy {
         const vz = direction.z * speed;
         this.physicsBody.body.velocity.set(vx, 0, vz);
 
+        // CRITICAL: Immediately update position to avoid "ghosting" visual artifacts
+        // Since velocity is set AFTER physics step in the game loop, the new velocity
+        // won't take effect until the NEXT physics step. This causes the mesh to show
+        // the old position for one frame, then jump to the new position next frame.
+        // Solution: Manually update position immediately after setting velocity.
+        const deltaTime = Math.min(Time.deltaTime, 0.05); // Cap to prevent huge jumps on lag
+        const moveDistance = speed * deltaTime;
+        this.physicsBody.body.position.x += direction.x * moveDistance;
+        this.physicsBody.body.position.z += direction.z * moveDistance;
+
         // CRITICAL: Keep enemy at ground level by counteracting gravity
         // Physics engine gravity (-9.82) will pull enemy down, so we need to keep Y position stable
         const targetY = 1; // Ground level + half height
@@ -1016,7 +1026,6 @@ export class Enemy {
         }
 
         // 更新脚步声计时器
-        const deltaTime = Time.deltaTime;
         this.footstepTimer += deltaTime;
         if (this.footstepTimer >= this.footstepInterval) {
             this.soundManager.play('enemy_footstep');
