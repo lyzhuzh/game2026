@@ -1,3 +1,5 @@
+女儿的构思，儿子的设计，老爹的口喷，AI的执行完成的FPS Game Demo
+
 # Three.js FPS Game
 
 > 使用 Three.js 和 Cannon-es 构建的的第一人称射击游戏
@@ -42,8 +44,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-username/threejs-fps-game.git
-cd threejs-fps-game
+git clone https://github.com/lyzhuzh/game2026.git
+cd game2026
 
 # 安装依赖
 npm install
@@ -440,13 +442,6 @@ A: 删除 `node_modules` 和 `dist` 目录，重新运行 `npm install`。
 - [Cannon-es](https://github.com/pmndrs/cannon-es) - 物理引擎
 - [Kenney.nl](https://kenney.nl/) - 游戏资产
 - [Quaternius](https://sketchfab.com/quaternius) - 敌人模型
-
----
-
-## 联系方式
-
-- 项目主页: [https://github.com/your-username/threejs-fps-game](https://github.com/your-username/threejs-fps-game)
-- 问题反馈: [Issues](https://github.com/your-username/threejs-fps-game/issues)
 
 ---
 
