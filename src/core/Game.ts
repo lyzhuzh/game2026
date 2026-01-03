@@ -98,7 +98,6 @@ export class Game {
     // Arrow keys: forward/down offset, ,/.: nothing (reserved)
     private muzzleFlashForward: number = 0.81;
     private muzzleFlashDown: number = 0.08;
-    private lastMuzzleDebugTime: number = 0;
 
     private constructor() {
         this.gameLoop = new GameLoop();

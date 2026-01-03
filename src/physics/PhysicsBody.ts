@@ -28,7 +28,7 @@ export class PhysicsBody {
         mesh?: THREE.Object3D
     ) {
         // Determine body type
-        let type: CANNON.BodyTypes;
+        let type: CANNON.BodyType;
         switch (config.type ?? 'dynamic') {
             case 'static':
                 type = CANNON.Body.STATIC;

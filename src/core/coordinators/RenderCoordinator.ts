@@ -7,7 +7,6 @@ import * as THREE from 'three';
 import { BaseCoordinator, CoordinatorConfig } from './BaseCoordinator';
 import { UIManager } from '../../ui/UIManager';
 import { WeaponRenderer } from '../../weapons/WeaponRenderer';
-import { GAME_CONFIG } from '../../config/GameConfig';
 
 export interface RenderCoordinatorConfig extends CoordinatorConfig {
     ui: UIManager;
@@ -42,12 +41,9 @@ export class RenderCoordinator extends BaseCoordinator {
         console.log('[RenderCoordinator] Renderer initialized');
     }
 
-    protected onUpdate(deltaTime: number): void {
-        // 更新武器渲染
-        // this.weaponRenderer.update(deltaTime);
-
+    protected onUpdate(_deltaTime: number): void {
         // 更新 FPS 计算
-        this.updateFPS(deltaTime);
+        this.updateFPS(_deltaTime);
 
         // 渲染在 Game.onRender 中处理
         // 这里可以添加渲染前的准备工作
@@ -127,7 +123,7 @@ export class RenderCoordinator extends BaseCoordinator {
     /**
      * 更新 FPS
      */
-    private updateFPS(deltaTime: number): void {
+    private updateFPS(_deltaTime: number): void {
         this.frameCount++;
         const now = performance.now() / 1000;
 

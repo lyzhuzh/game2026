@@ -4,7 +4,6 @@
  */
 
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { PhysicsBodyFactory } from '../physics/PhysicsBody';
 import { AssetManager } from '../assets/AssetManager';
@@ -270,7 +269,7 @@ export class Enemy {
 
                 // Extract animations if available
                 const animations = gltf.animations || [];
-                this.attachModel(clonedScene, animations);
+                this.attachModel(clonedScene as THREE.Group, animations);
             } else {
                 this.createPlaceholder();
             }
@@ -305,7 +304,7 @@ export class Enemy {
 
         // Handle SkinnedMesh - update skeleton to use cloned bones
         clone.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if ((child as any).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 const originalSkeleton = skinnedMesh.skeleton;
 
@@ -367,7 +366,7 @@ export class Enemy {
 
         // Force update all SkinnedMesh bones
         model.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if ((child as any).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 skinnedMesh.updateMatrixWorld(true);
             }
@@ -391,7 +390,7 @@ export class Enemy {
 
         // Force update all SkinnedMesh bones and matrices
         model.traverse((child) => {
-            if ((child as THREE.Mesh).isSkinnedMesh) {
+            if ((child as any).isSkinnedMesh) {
                 const skinnedMesh = child as THREE.SkinnedMesh;
                 skinnedMesh.updateMatrixWorld(true);
             }

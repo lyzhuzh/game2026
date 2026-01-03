@@ -13,11 +13,9 @@ import { Game } from '../Game';
 export class CoordinatorManager {
     private coordinators: Map<string, ICoordinator> = new Map();
     private eventBus: EventBus;
-    private _game: Game;
     private isInitialized: boolean = false;
 
-    constructor(game: Game, eventBus: EventBus) {
-        this._game = game;
+    constructor(_game: Game, eventBus: EventBus) {
         this.eventBus = eventBus;
     }
 

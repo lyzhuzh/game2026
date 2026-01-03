@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { ItemType, ItemStats, ITEM_CONFIGS } from './ItemConfig';
 
+export type { ItemType } from './ItemConfig';
+
 export class Item {
     public readonly type: ItemType;
     public readonly stats: ItemStats;

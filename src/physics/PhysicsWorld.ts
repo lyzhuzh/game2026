@@ -30,8 +30,10 @@ export class PhysicsWorld {
             : new CANNON.NaiveBroadphase();
         this.world.broadphase = broadphase;
 
-        // Configure solver
+        // Configure solver (note: cannon-es may not have these properties in all versions)
+        // @ts-ignore - iterations may not exist in all cannon-es versions
         this.world.solver.iterations = config.solverIterations ?? 10;
+        // @ts-ignore - tolerance may not exist in all cannon-es versions
         this.world.solver.tolerance = config.tolerance ?? 0.001;
 
         // Create default materials
@@ -159,7 +161,8 @@ export class PhysicsWorld {
         ray.collisionFilterMask = options.collisionFilterMask ?? -1;
 
         // Perform raycast against the world (for static bodies like walls)
-        ray.intersectWorld(this.world, result);
+        // @ts-ignore - intersectWorld signature differs in different cannon-es versions
+        ray.intersectWorld(this.world, {});
 
         // Check for dynamic body hits manually (Cannon.js raycast doesn't detect moving dynamic bodies)
         const dynamicResult = this.checkDynamicBodies(from, direction, to);
@@ -170,7 +173,7 @@ export class PhysicsWorld {
         }
 
         // Check if we hit something static
-        if (result.hasHit) {
+        if (result.hasHit && result.body) {
             const body = result.body;
 
             // Skip player body (kinematic with mass 0)

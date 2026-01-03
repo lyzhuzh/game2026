@@ -22,13 +22,13 @@ export class PhysicsCoordinator extends BaseCoordinator {
         this._character = config.character;
     }
 
-    protected onInitialize(): void {
+    protected async onInitialize(): Promise<void> {
         // 监听物理相关事件
         this.eventBus.on('player:jump', () => this.onPlayerJump());
         this.eventBus.on('player:landed', () => this.onPlayerLanded());
     }
 
-    protected onUpdate(deltaTime: number): void {
+    protected onUpdate(_deltaTime: number): void {
         // 物理步进在 Game.onFixedUpdate 中处理
         // 这里处理物理与视觉的同步
         this.syncPhysics();
