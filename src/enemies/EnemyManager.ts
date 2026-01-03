@@ -461,7 +461,10 @@ export class EnemyManager {
             const enemyPos = enemy.getCenterPosition(); // Use center position for more accurate hit detection
             const distance = position.distanceTo(enemyPos);
 
-            if (distance < 0.8) { // Hit threshold - reduced from 3m to 0.8m for more precise shooting
+            // 敌人身高 2m，中心在躯干高度 (y+1.2)
+            // 头部在 y+2，距离中心 0.8m；腿部在 y+0，距离中心 1.2m
+            // 使用 1.2m 阈值可以覆盖躯干和大部分命中情况
+            if (distance < 1.2) {
                 enemy.takeDamage(damage);
                 return true;
             }
