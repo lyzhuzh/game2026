@@ -424,6 +424,13 @@ export class LevelBuilder {
                 }
             }
 
+            // Add "一个空格" text graffiti - centered, using random graffiti colors
+            const textX = 256;  // 墙壁水平中心
+            const textY = 256;  // 墙壁垂直中心
+            const textSize = 60 + Math.random() * 30;  // 60-90px
+            const textColor = graffitiColors[Math.floor(Math.random() * graffitiColors.length)];  // 随机颜色
+            this.drawChineseGraffiti(ctx, '一个空格', textX, textY, textSize, textColor);
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
