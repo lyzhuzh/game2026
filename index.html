@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="A first-person shooter game built with Three.js">
     <title>FPS Game</title>
     <style>
@@ -19,6 +19,12 @@
             overflow: hidden;
             background: #000;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* 禁用浏览器手势 */
+            touch-action: none;
+            overscroll-behavior: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         #game-container {
