@@ -366,6 +366,11 @@ export class Game {
         console.log('[Game] Generating level...');
         await this.levelBuilder.generateLevel();
 
+        // Pass cover positions to enemy manager for AI
+        const coverPositions = this.levelBuilder.getCoverPositions();
+        this.enemies.setAvailableCovers(coverPositions);
+        console.log(`[Game] Passed ${coverPositions.length} cover positions to enemy AI`);
+
         // Add lights
         this.setupLights();
 
@@ -922,6 +927,9 @@ export class Game {
         fireOrigin.addScaledVector(cameraDown, this.muzzleFlashDown);
 
         this.particles.muzzleFlash(fireOrigin, fireDirection, weaponType);
+
+        // Notify nearby enemies of the gunshot sound
+        this.enemies.notifyNearbyEnemiesOfShot(fireOrigin);
     }
 
     /**

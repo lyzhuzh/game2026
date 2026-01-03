@@ -17,6 +17,12 @@ export interface LevelConfig {
     obstacleCount: number;
 }
 
+export interface CoverPosition {
+    position: THREE.Vector3;
+    boundingBox: THREE.Box3;
+    type: 'obstacle' | 'wall' | 'platform';
+}
+
 export class LevelBuilder {
     private scene: THREE.Scene;
     private assetManager: AssetManager;
@@ -30,6 +36,9 @@ export class LevelBuilder {
         platformCount: 15,
         obstacleCount: 20
     };
+
+    // Cover positions for AI
+    private coverPositions: CoverPosition[] = [];
 
     constructor(scene: THREE.Scene, physics?: PhysicsWorld) {
         this.scene = scene;
@@ -115,8 +124,25 @@ export class LevelBuilder {
         // Random graffiti on ground - MORE types and quantity
         const graffitiColors = ['#ff00ff', '#00ffff', '#ffff00', '#00ff00', '#ff6600', '#ff0066', '#66ff00', '#0066ff'];
 
+        // Add "一个空格" graffiti on ground - 田字分割4块，每块随机
+        // 田字4个象限，每个象限内随机位置，确保不超出场地
+        const quadrants = [
+            { xMin: 100, xMax: 400, yMin: 100, yMax: 400 },   // 左上
+            { xMin: 624, xMax: 924, yMin: 100, yMax: 400 },   // 右上
+            { xMin: 100, xMax: 400, yMin: 624, yMax: 924 },   // 左下
+            { xMin: 624, xMax: 924, yMin: 624, yMax: 924 }    // 右下
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const q = quadrants[i];
+            const x = q.xMin + Math.random() * (q.xMax - q.xMin);
+            const y = q.yMin + Math.random() * (q.yMax - q.yMin);
+            const size = 50 + Math.random() * 50;  // 减小到 50-100px
+            this.drawChineseGraffiti(ctx, '一个空格', x, y, size, graffitiColors[i]);
+        }
+
         // Draw many random graffiti elements scattered across ground
-        for (let g = 0; g < 25; g++) {
+        for (let g = 0; g < 20; g++) {
             const cx = 50 + Math.random() * 924;
             const cy = 50 + Math.random() * 924;
             const color = graffitiColors[Math.floor(Math.random() * graffitiColors.length)];
@@ -222,7 +248,7 @@ export class LevelBuilder {
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(4, 4);
+        texture.repeat.set(1, 1);  // 不重复，直接画4个
 
         const groundGeometry = new THREE.PlaneGeometry(this.config.size * 2, this.config.size * 2);
         const groundMaterial = new THREE.MeshStandardMaterial({
@@ -268,7 +294,7 @@ export class LevelBuilder {
         }));
 
         // Function to create unique texture for each wall with graffiti
-        const createWallTexture = (_wallName: string, baseColor: string, accentColor: string, graffitiColors: string[]) => {
+        const createWallTexture = (wallName: string, baseColor: string, accentColor: string, graffitiColors: string[]) => {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
@@ -401,7 +427,7 @@ export class LevelBuilder {
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(2, 1);  // Less repeat = bigger patterns
+            texture.repeat.set(2, 1);
             return texture;
         };
 
@@ -736,6 +762,15 @@ export class LevelBuilder {
                 // 添加到场景
                 this.scene.add(obstacle);
 
+                // Register as cover position for AI
+                const bbox = new THREE.Box3().setFromObject(obstacle);
+                const coverPos: CoverPosition = {
+                    position: obstacle.position.clone(),
+                    boundingBox: bbox.clone(),
+                    type: 'obstacle'
+                };
+                this.coverPositions.push(coverPos);
+
                 // 为所有障碍物添加物理碰撞体
                 if (this.physics) {
                     const bbox = new THREE.Box3().setFromObject(obstacle);
@@ -763,6 +798,56 @@ export class LevelBuilder {
                 }
             }
         }
+    }
+
+    /**
+     * Draw Chinese text in graffiti style
+     */
+    private drawChineseGraffiti(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string): void {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.font = `bold ${size}px "Microsoft YaHei", "SimHei", "Heiti SC", "PingFang SC", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // 主文字填充 - 使用更亮的颜色
+        const gradient = ctx.createLinearGradient(-size, -size / 2, size, size / 2);
+        gradient.addColorStop(0, this.lightenColor(color, 50));
+        gradient.addColorStop(0.5, this.lightenColor(color, 70));
+        gradient.addColorStop(1, this.lightenColor(color, 50));
+        ctx.fillStyle = gradient;
+        ctx.fillText(text, 0, 0);
+
+        // Drip/splatter effect
+        ctx.globalAlpha = 0.4;
+        for (let i = 0; i < 5; i++) {
+            const dripX = (Math.random() - 0.5) * size * 1.5;
+            const dripY = size / 2 + Math.random() * size / 3;
+            const dripSize = 3 + Math.random() * 8;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(dripX, dripY, dripSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * Lighten a hex color
+     */
+    private lightenColor(color: string, percent: number): string {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return '#' + (
+            0x1000000 +
+            (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+            (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+            (B < 255 ? (B < 1 ? 0 : B) : 255)
+        ).toString(16).slice(1);
     }
 
     /**
@@ -845,6 +930,25 @@ export class LevelBuilder {
                 ctx.stroke();
                 break;
         }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        return texture;
+    }
+
+    /**
+     * Create Chinese text graffiti texture for corridor walls
+     */
+    private createChineseGraffitiTexture(text: string, color: string, size: number = 256): THREE.CanvasTexture {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+
+        // Transparent background
+        ctx.clearRect(0, 0, size, size);
+
+        // Draw the Chinese text in graffiti style
+        this.drawChineseGraffiti(ctx, text, size / 2, size / 2, size * 0.6, color);
 
         const texture = new THREE.CanvasTexture(canvas);
         return texture;
@@ -1182,8 +1286,16 @@ export class LevelBuilder {
      */
     private clearLevel(): void {
         console.log('[LevelBuilder] Clearing level...');
+        this.coverPositions = [];
         // In a real implementation, we would track all created objects and remove them
         // For now, we rely on the main game clear logic or just add to scene
+    }
+
+    /**
+     * Get all registered cover positions for AI
+     */
+    getCoverPositions(): CoverPosition[] {
+        return this.coverPositions;
     }
 
     /**

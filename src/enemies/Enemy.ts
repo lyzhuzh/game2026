@@ -12,7 +12,7 @@ import { GAME_ASSETS } from '../assets/AssetConfig';
 import { Time } from '../core/Time';
 import { SoundManager } from '../audio/SoundManager';
 
-export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'evade' | 'dead';
+export type EnemyState = 'idle' | 'patrol' | 'chase' | 'attack' | 'evade' | 'retreat' | 'cover' | 'dead';
 export type EnemyType = 'grunt' | 'soldier' | 'heavy' | 'sniper';
 
 export interface EnemyStats {
@@ -35,6 +35,14 @@ export interface EnemyStats {
     // Ranged Combat
     shootRange: number;         // 射击范围
 
+    // Survival Intelligence
+    retreatHealthThreshold: number;  // 低血撤退阈值 (0-1, 30% = 0.3)
+    retreatDuration: number;         // 撤退持续时间(秒)
+
+    // Sound Perception
+    hearingRange: number;            // 听力范围(米)
+    investigationDuration: number;   // 调查声音持续时间(秒)
+
     // Points
     scoreValue: number;
 }
@@ -53,6 +61,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
         loseSightRange: 25,
         // Ranged combat - 基础敌人射程较短
         shootRange: 25,  // detectionRange + 10
+        // Survival Intelligence - 基础敌人血少，容易撤退
+        retreatHealthThreshold: 0.4,  // 40% 血量撤退
+        retreatDuration: 3,            // 撤退3秒
+        // Sound Perception - 基础敌人听力一般
+        hearingRange: 40,              // 40米听力范围
+        investigationDuration: 5,      // 调查5秒
         scoreValue: 100
     },
 
@@ -69,6 +83,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
         loseSightRange: 30,
         // Ranged combat - 士兵射程中等
         shootRange: 30,  // detectionRange + 10
+        // Survival Intelligence - 士兵中等生存能力
+        retreatHealthThreshold: 0.3,  // 30% 血量撤退
+        retreatDuration: 4,            // 撤退4秒
+        // Sound Perception - 士兵听力较好
+        hearingRange: 50,              // 50米听力范围
+        investigationDuration: 6,      // 调查6秒
         scoreValue: 200
     },
 
@@ -85,6 +105,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
         loseSightRange: 20,
         // Ranged combat - 重装敌人射程中等
         shootRange: 22,  // detectionRange + 10
+        // Survival Intelligence - 重装兵血厚，不易撤退
+        retreatHealthThreshold: 0.2,  // 20% 血量撤退
+        retreatDuration: 2,            // 撤退2秒
+        // Sound Perception - 重装兵听力差（重装备影响）
+        hearingRange: 30,              // 30米听力范围
+        investigationDuration: 4,      // 调查4秒
         scoreValue: 500
     },
 
@@ -101,6 +127,12 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyStats> = {
         loseSightRange: 35,
         // Ranged combat - 狙击手射程最远
         shootRange: 50,  // detectionRange + 10 (狙击手特殊配置，更远的射程)
+        // Survival Intelligence - 狙击手血少，容易撤退，撤退时间长
+        retreatHealthThreshold: 0.5,  // 50% 血量撤退
+        retreatDuration: 5,            // 撤退5秒
+        // Sound Perception - 狙击手听力最好（专注）
+        hearingRange: 60,              // 60米听力范围
+        investigationDuration: 8,      // 调查8秒
         scoreValue: 300
     }
 };
@@ -130,6 +162,21 @@ export class Enemy {
     // Evade behavior
     private evadeTimer: number = 0;
     private evadeDirection: THREE.Vector3 = new THREE.Vector3();
+
+    // Retreat behavior
+    private retreatTimer: number = 0;
+
+    // Sound investigation
+    private investigatingSound: boolean = false;
+    private soundPosition: THREE.Vector3 | null = null;
+    private investigationTimer: number = 0;
+
+    // Cover behavior
+    private seekingCover: boolean = false;
+    private coverPosition: THREE.Vector3 | null = null;
+    private inCover: boolean = false;
+    private coverTimer: number = 0;
+    private availableCovers: any[] = []; // Will be set from EnemyManager
 
     // Ranged Combat
     private lastShootTime: number = 0;
@@ -517,6 +564,17 @@ export class Enemy {
                     case 'evade':
                         this.playAnimation('run', true); // Use run animation for evading
                         break;
+                    case 'retreat':
+                        this.playAnimation('run', true); // Use run animation for retreating
+                        break;
+                    case 'cover':
+                        // Use run when moving to cover, idle when in cover
+                        if (this.seekingCover) {
+                            this.playAnimation('run', true);
+                        } else {
+                            this.playAnimation('idle', true);
+                        }
+                        break;
                 }
                 this.previousState = this.state;
             }
@@ -530,7 +588,7 @@ export class Enemy {
     private updateProceduralAnimation(): void {
         if (!this.modelRoot || this.isDead) return;
 
-        const isMoving = this.state === 'chase' || this.state === 'patrol';
+        const isMoving = this.state === 'chase' || this.state === 'patrol' || this.state === 'retreat' || this.state === 'evade' || (this.state === 'cover' && this.seekingCover);
 
         if (isMoving) {
             // Increment walk cycle
@@ -601,6 +659,12 @@ export class Enemy {
             case 'evade':
                 this.updateEvade(deltaTime, playerPosition);
                 break;
+            case 'retreat':
+                this.updateRetreat(deltaTime, playerPosition);
+                break;
+            case 'cover':
+                this.updateCover(deltaTime, playerPosition);
+                break;
         }
 
         // Sync physics body with mesh
@@ -635,6 +699,12 @@ export class Enemy {
                 break;
 
             case 'chase':
+                // Check if low health - retreat to survive
+                if (this.health < this.stats.maxHealth * this.stats.retreatHealthThreshold) {
+                    this.state = 'retreat';
+                    this.retreatTimer = this.stats.retreatDuration;
+                    break;
+                }
                 // Check if in attack range
                 if (distance < this.stats.attackRange) {
                     this.state = 'attack';
@@ -647,10 +717,32 @@ export class Enemy {
                 break;
 
             case 'evade':
+                // Check if low health during evade - retreat to survive
+                if (this.health < this.stats.maxHealth * this.stats.retreatHealthThreshold) {
+                    this.state = 'retreat';
+                    this.retreatTimer = this.stats.retreatDuration;
+                    break;
+                }
                 // Update evade timer
                 this.evadeTimer -= deltaTime;
                 if (this.evadeTimer <= 0) {
-                    // After evading, switch to chase or attack based on distance
+                    // After evading, try to find cover (30% chance) or continue combat
+                    if (Math.random() < 0.3 && this.availableCovers.length > 0) {
+                        const currentPos = new THREE.Vector3(
+                            this.physicsBody.body.position.x,
+                            this.physicsBody.body.position.y,
+                            this.physicsBody.body.position.z
+                        );
+                        const cover = this.findNearestCover(currentPos, playerPosition);
+                        if (cover) {
+                            this.state = 'cover';
+                            this.coverPosition = cover;
+                            this.seekingCover = true;
+                            this.inCover = false;
+                            break;
+                        }
+                    }
+                    // No cover found or chose not to seek it, continue combat
                     if (distance < this.stats.attackRange) {
                         this.state = 'attack';
                     } else {
@@ -660,9 +752,34 @@ export class Enemy {
                 break;
 
             case 'attack':
+                // Check if low health - retreat to survive
+                if (this.health < this.stats.maxHealth * this.stats.retreatHealthThreshold) {
+                    this.state = 'retreat';
+                    this.retreatTimer = this.stats.retreatDuration;
+                    break;
+                }
                 // Player out of range
                 if (distance > this.stats.attackRange * 1.5) {
                     this.state = 'chase';
+                }
+                break;
+
+            case 'retreat':
+                // Update retreat timer
+                this.retreatTimer -= deltaTime;
+                if (this.retreatTimer <= 0) {
+                    // After retreating, re-evaluate based on health and distance
+                    if (this.health < this.stats.maxHealth * this.stats.retreatHealthThreshold) {
+                        // Still low health, try to patrol/sneak away
+                        this.state = 'patrol';
+                    } else {
+                        // Health is stable, return to combat
+                        if (distance < this.stats.attackRange) {
+                            this.state = 'attack';
+                        } else {
+                            this.state = 'chase';
+                        }
+                    }
                 }
                 break;
         }
@@ -776,27 +893,56 @@ export class Enemy {
             this.physicsBody.body.position.y,
             this.physicsBody.body.position.z
         );
+
+        // Determine target: investigate sound or chase player
+        let targetPosition: THREE.Vector3;
+        if (this.investigatingSound && this.soundPosition) {
+            targetPosition = this.soundPosition;
+            // Decrease investigation timer
+            this.investigationTimer -= deltaTime;
+
+            // Check if investigation is complete
+            const distToSound = currentPos.distanceTo(this.soundPosition);
+            if (this.investigationTimer <= 0 || distToSound < 3) {
+                // Investigation complete - check if player is visible
+                const distToPlayer = currentPos.distanceTo(playerPosition);
+                if (distToPlayer <= this.stats.detectionRange) {
+                    // Player found, continue chase
+                    this.investigatingSound = false;
+                    this.soundPosition = null;
+                } else {
+                    // Player not found, return to patrol
+                    this.investigatingSound = false;
+                    this.soundPosition = null;
+                    this.alertedByAlly = false; // Clear alert to prevent state flipping
+                    this.state = 'patrol';
+                }
+            }
+        } else {
+            targetPosition = playerPosition;
+        }
+
         const direction = new THREE.Vector3()
-            .subVectors(playerPosition, currentPos)
+            .subVectors(targetPosition, currentPos)
             .normalize();
 
         const distance = currentPos.distanceTo(playerPosition);
 
-        // Ranged attack - shoot if in range and cooldown ready
-        if (distance <= this.stats.shootRange && this.canShoot()) {
+        // Ranged attack - shoot if in range and cooldown ready (only when actually chasing, not investigating)
+        if (!this.investigatingSound && distance <= this.stats.shootRange && this.canShoot()) {
             this.shootAtPlayer(playerPosition);
         }
 
-        // Slow down when approaching attack range
+        // Slow down when approaching attack range (only when chasing player)
         let actualSpeed = this.stats.chaseSpeed;
-        if (distance < this.stats.attackRange * 1.5) {
+        if (!this.investigatingSound && distance < this.stats.attackRange * 1.5) {
             actualSpeed = this.stats.chaseSpeed * (distance / (this.stats.attackRange * 1.5));
         }
 
         this.move(direction, actualSpeed);
 
-        // Face player
-        this.faceTarget(playerPosition);
+        // Face target
+        this.faceTarget(targetPosition);
     }
 
     /**
@@ -831,6 +977,87 @@ export class Enemy {
         const distance = this.mesh.position.distanceTo(playerPosition);
         if (distance <= this.stats.shootRange && this.canShoot()) {
             this.shootAtPlayer(playerPosition);
+        }
+    }
+
+    /**
+     * Retreat state - run away from player when low health
+     */
+    private updateRetreat(deltaTime: number, playerPosition: THREE.Vector3): void {
+        const currentPos = new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y,
+            this.physicsBody.body.position.z
+        );
+
+        // Calculate direction AWAY from player
+        const awayDirection = new THREE.Vector3()
+            .subVectors(currentPos, playerPosition)
+            .normalize();
+
+        // Move away from player using FASTER speed (1.5x chaseSpeed)
+        this.move(awayDirection, this.stats.chaseSpeed * 1.5);
+
+        // Face away from player (don't look at threat while running)
+        // Keep current facing direction
+    }
+
+    /**
+     * Cover state - move to cover and hide
+     */
+    private updateCover(deltaTime: number, playerPosition: THREE.Vector3): void {
+        const currentPos = new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y,
+            this.physicsBody.body.position.z
+        );
+
+        if (this.seekingCover && this.coverPosition) {
+            // Moving to cover
+            const distToCover = currentPos.distanceTo(this.coverPosition);
+
+            if (distToCover > 2) {
+                // Still moving to cover
+                const direction = new THREE.Vector3()
+                    .subVectors(this.coverPosition, currentPos)
+                    .normalize();
+
+                this.move(direction, this.stats.chaseSpeed * 1.2); // Move faster to cover
+                this.faceTarget(this.coverPosition);
+            } else {
+                // Reached cover
+                this.seekingCover = false;
+                this.inCover = true;
+                this.coverTimer = 3 + Math.random() * 2; // Stay in cover for 3-5 seconds
+
+                // Stop movement
+                this.physicsBody.body.velocity.set(0, 0, 0);
+            }
+        } else if (this.inCover) {
+            // In cover - wait for timer
+            this.coverTimer -= deltaTime;
+
+            // Face toward player to peek out
+            this.faceTarget(playerPosition);
+
+            // Occasionally shoot from cover
+            const distToPlayer = currentPos.distanceTo(playerPosition);
+            if (distToPlayer <= this.stats.shootRange && this.canShoot() && Math.random() < 0.02) {
+                this.shootAtPlayer(playerPosition);
+            }
+
+            // Check if should leave cover
+            if (this.coverTimer <= 0) {
+                this.inCover = false;
+                this.coverPosition = null;
+                // Return to chase or patrol based on player visibility
+                if (distToPlayer <= this.stats.detectionRange) {
+                    this.state = 'chase';
+                } else {
+                    this.state = 'patrol';
+                    this.alertedByAlly = false;
+                }
+            }
         }
     }
 
@@ -960,6 +1187,89 @@ export class Enemy {
     }
 
     /**
+     * Notify this enemy that a gunshot was heard nearby
+     */
+    hearPlayerShot(soundPosition: THREE.Vector3): void {
+        const distance = this.mesh.position.distanceTo(soundPosition);
+
+        // Check if within hearing range
+        if (distance <= this.stats.hearingRange && !this.isDead) {
+            // Only investigate if not already in combat
+            if (this.state === 'idle' || this.state === 'patrol') {
+                this.investigatingSound = true;
+                this.soundPosition = soundPosition.clone();
+                this.investigationTimer = this.stats.investigationDuration;
+                // Switch to chase state to investigate
+                this.state = 'chase';
+            }
+        }
+    }
+
+    /**
+     * Set available cover positions from level
+     */
+    setAvailableCovers(covers: any[]): void {
+        this.availableCovers = covers;
+    }
+
+    /**
+     * Find the nearest cover position that provides cover from the player
+     */
+    private findNearestCover(enemyPosition: THREE.Vector3, playerPosition: THREE.Vector3): THREE.Vector3 | null {
+        let nearestCover: THREE.Vector3 | null = null;
+        let nearestDistance = Infinity;
+
+        for (const cover of this.availableCovers) {
+            const coverPos = cover.position || cover;
+            if (!coverPos) continue;
+
+            const distToCover = enemyPosition.distanceTo(coverPos);
+            const distToPlayer = playerPosition.distanceTo(coverPos);
+
+            // Cover must be closer than player, and not too far
+            if (distToCover < nearestDistance && distToCover < 50 && distToPlayer > 10) {
+                // Check if this position actually provides cover
+                if (this.providesCover(coverPos, playerPosition)) {
+                    nearestCover = new THREE.Vector3(coverPos.x, coverPos.y || 0, coverPos.z || 0);
+                    nearestDistance = distToCover;
+                }
+            }
+        }
+
+        return nearestCover;
+    }
+
+    /**
+     * Check if a position provides cover from the player's perspective
+     * Uses raycasting to determine if there's line-of-sight
+     */
+    private providesCover(coverPos: THREE.Vector3, playerPosition: THREE.Vector3): boolean {
+        // Check if cover position is between enemy and player
+        const toPlayer = new THREE.Vector3().subVectors(playerPosition, coverPos).normalize();
+        const enemyPos = new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y + 1.5, // Eye level
+            this.physicsBody.body.position.z
+        );
+
+        // Simple check: if cover is closer to player than enemy, and angle is reasonable
+        const distCoverToPlayer = coverPos.distanceTo(playerPosition);
+        const distEnemyToPlayer = enemyPos.distanceTo(playerPosition);
+
+        // Cover must be between enemy and player (closer to player)
+        if (distCoverToPlayer >= distEnemyToPlayer) {
+            return false;
+        }
+
+        // Check angle: cover should be roughly in line between enemy and player
+        const toCover = new THREE.Vector3().subVectors(coverPos, enemyPos).normalize();
+        const dot = toCover.dot(toPlayer);
+
+        // Cover is in the right direction if dot product is positive
+        return dot > 0.3; // About 70 degrees or less
+    }
+
+    /**
      * Take damage
      */
     takeDamage(amount: number): void {
@@ -1065,6 +1375,18 @@ export class Enemy {
         return new THREE.Vector3(
             this.physicsBody.body.position.x,
             this.physicsBody.body.position.y,
+            this.physicsBody.body.position.z
+        );
+    }
+
+    /**
+     * Get enemy center position (for hit detection)
+     * Returns position at torso/center height for more accurate shooting
+     */
+    getCenterPosition(): THREE.Vector3 {
+        return new THREE.Vector3(
+            this.physicsBody.body.position.x,
+            this.physicsBody.body.position.y + 1.2, // Torso/center height
             this.physicsBody.body.position.z
         );
     }

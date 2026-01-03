@@ -48,6 +48,9 @@ export class EnemyManager {
     // Timer management
     private timerManager: TimerManager;
 
+    // Cover positions for AI
+    private availableCovers: any[] = [];
+
     constructor(physics: PhysicsWorld, scene: THREE.Scene, timerManager?: TimerManager) {
         this.physics = physics;
         this.scene = scene;
@@ -73,6 +76,17 @@ export class EnemyManager {
      */
     setOnEnemyHurt(callback: () => void): void {
         this.onEnemyHurtCallback = callback;
+    }
+
+    /**
+     * Set available cover positions from level
+     */
+    setAvailableCovers(covers: any[]): void {
+        this.availableCovers = covers;
+        // Update all existing enemies with new cover positions
+        for (const enemy of this.enemies) {
+            enemy.setAvailableCovers(covers);
+        }
     }
 
     /**
@@ -142,6 +156,9 @@ export class EnemyManager {
         // Set shoot callback for ranged attacks
         enemy.setOnShoot((origin, direction, damage) => this.handleEnemyShoot(origin, direction, damage));
 
+        // Set available cover positions
+        enemy.setAvailableCovers(this.availableCovers);
+
         this.enemies.push(enemy);
         this.enemiesRemaining++;
 
@@ -160,6 +177,19 @@ export class EnemyManager {
             }
             // Notify each living enemy about the death
             enemy.notifyAllyDeath(deathPosition);
+        }
+    }
+
+    /**
+     * Notify nearby enemies of player gunshot
+     */
+    notifyNearbyEnemiesOfShot(shotPosition: THREE.Vector3): void {
+        for (const enemy of this.enemies) {
+            if (enemy.isEnemyDead()) {
+                continue;
+            }
+            // Notify each living enemy about the gunshot
+            enemy.hearPlayerShot(shotPosition);
         }
     }
 
@@ -428,10 +458,10 @@ export class EnemyManager {
         for (const enemy of this.enemies) {
             if (enemy.isEnemyDead()) continue;
 
-            const enemyPos = enemy.getPosition();
+            const enemyPos = enemy.getCenterPosition(); // Use center position for more accurate hit detection
             const distance = position.distanceTo(enemyPos);
 
-            if (distance < 3) { // Hit threshold
+            if (distance < 0.8) { // Hit threshold - reduced from 3m to 0.8m for more precise shooting
                 enemy.takeDamage(damage);
                 return true;
             }
