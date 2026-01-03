@@ -932,48 +932,6 @@ export class Game {
         this.enemies.notifyNearbyEnemiesOfShot(fireOrigin);
     }
 
-    /**
-     * DEBUG: Handle muzzle flash position adjustment via keyboard
-     * Arrow Up/Down: adjust forward distance
-     * Arrow Left/Right: adjust down distance
-     * Press to log current values
-     */
-    private _handleMuzzleFlashDebug(): void {
-        const debugKeys = (window as any).__debugKeys;
-        if (!debugKeys) return;
-
-        const step = 0.01;
-        const now = Date.now();
-        if (now - this.lastMuzzleDebugTime < 100) return;
-
-        // Up/Down = forward distance
-        if (debugKeys.ArrowUp) {
-            this.muzzleFlashForward += step;
-            this.lastMuzzleDebugTime = now;
-            this.logMuzzleFlashPosition();
-        }
-        if (debugKeys.ArrowDown) {
-            this.muzzleFlashForward = Math.max(0.1, this.muzzleFlashForward - step);
-            this.lastMuzzleDebugTime = now;
-            this.logMuzzleFlashPosition();
-        }
-        // Left/Right = down distance
-        if (debugKeys.ArrowRight) {
-            this.muzzleFlashDown += step;
-            this.lastMuzzleDebugTime = now;
-            this.logMuzzleFlashPosition();
-        }
-        if (debugKeys.ArrowLeft) {
-            this.muzzleFlashDown -= step;
-            this.lastMuzzleDebugTime = now;
-            this.logMuzzleFlashPosition();
-        }
-    }
-
-    private logMuzzleFlashPosition(): void {
-        console.log(`[MuzzleFlash] Forward: ${this.muzzleFlashForward.toFixed(3)}, Down: ${this.muzzleFlashDown.toFixed(3)}`);
-    }
-
 
     /**
      * Handle weapon hit (damage number + particles)

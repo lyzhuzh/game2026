@@ -15,15 +15,11 @@ export interface AICoordinatorConfig extends CoordinatorConfig {
 }
 
 export class AICoordinator extends BaseCoordinator {
-    private _enemyManager: EnemyManager;
-    private _scene: THREE.Scene;
     private spatialGrid: SpatialGrid;
     private _playerPosition: THREE.Vector3 = new THREE.Vector3();
 
     constructor(config: AICoordinatorConfig) {
         super(config);
-        this._enemyManager = config.enemyManager;
-        this._scene = config.scene;
 
         // 初始化空间分区
         this.spatialGrid = new SpatialGrid(GAME_CONFIG.enemy.detectionRange);

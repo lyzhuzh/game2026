@@ -120,7 +120,7 @@ export abstract class BaseCoordinator implements ICoordinator {
     /**
      * 子类实现：更新逻辑
      */
-    protected onUpdate(deltaTime: number): void {
+    protected onUpdate(_deltaTime: number): void {
         // 子类覆盖
     }
 

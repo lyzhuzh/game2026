@@ -63,7 +63,6 @@ export class DebugTools {
 
     // Collected data
     private debugPoints: DebugPoint[] = [];
-    private _distanceLines: DistanceMeasurement[] = [];
     private pathPoints: THREE.Vector3[] = [];
     private areaPoints: THREE.Vector3[] = [];
 
@@ -572,8 +571,6 @@ const ${this.currentObjectType.toLowerCase()}Bounds = {
 
         this.labels.forEach(l => this.scene.remove(l));
         this.labels = [];
-
-        this._distanceLines = [];
 
         // Clear enemy debug markers
         this.clearEnemyDebugMarkers();

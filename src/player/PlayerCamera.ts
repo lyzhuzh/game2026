@@ -237,48 +237,6 @@ export class PlayerCamera {
     }
 
     /**
-     * DEBUG: Handle third-person camera position adjustment
-     * Arrow Up/Down: adjust height
-     * Arrow Left/Right: adjust back distance
-     */
-    private handleCameraDebugInput(): void {
-        const debugKeys = (window as any).__debugKeys;
-        if (!debugKeys) return;
-
-        const step = 0.05;
-        const now = Date.now();
-        if (now - this.lastCameraDebugTime < 100) return;
-
-        // Up/Down = camera height
-        if (debugKeys.ArrowUp) {
-            this.debugCameraHeight += step;
-            this.lastCameraDebugTime = now;
-            this.logCameraPosition();
-        }
-        if (debugKeys.ArrowDown) {
-            this.debugCameraHeight = Math.max(0.1, this.debugCameraHeight - step);
-            this.lastCameraDebugTime = now;
-            this.logCameraPosition();
-        }
-        // Left/Right = back distance
-        if (debugKeys.ArrowRight) {
-            this.debugCameraBack += step;
-            this.lastCameraDebugTime = now;
-            this.logCameraPosition();
-        }
-        if (debugKeys.ArrowLeft) {
-            this.debugCameraBack = Math.max(0, this.debugCameraBack - step);
-            this.lastCameraDebugTime = now;
-            this.logCameraPosition();
-        }
-    }
-
-    private logCameraPosition(): void {
-        console.log(`[CameraDebug] Height: ${this.debugCameraHeight.toFixed(2)}, Back: ${this.debugCameraBack.toFixed(2)}`);
-    }
-
-
-    /**
      * Check camera collision with scene geometry
      * Uses Cannon.js raycast to detect walls and adjust camera position
      */

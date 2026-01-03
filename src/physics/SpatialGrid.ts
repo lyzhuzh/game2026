@@ -19,14 +19,14 @@ export interface SpatialEntity {
 }
 
 export class SpatialGrid {
-    private cellSize: number;
-    private grid = new Map<string, Set<SpatialEntity>>();
-    private entities = new Map<string | number, SpatialEntity>();
-    private positionCache = new Map<string | number, THREE.Vector3>();
+    protected cellSize: number;
+    protected grid = new Map<string, Set<SpatialEntity>>();
+    protected entities = new Map<string | number, SpatialEntity>();
+    protected positionCache = new Map<string | number, THREE.Vector3>();
 
     // 统计信息
-    private queryCount = 0;
-    private hitCount = 0;
+    protected queryCount = 0;
+    protected hitCount = 0;
 
     constructor(cellSize: number = 10) {
         this.cellSize = cellSize;
